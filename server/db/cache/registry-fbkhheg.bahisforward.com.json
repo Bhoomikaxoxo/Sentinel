@@ -1,0 +1,23 @@
+{
+  "data": {
+    "registration": {
+      "registrar": null,
+      "createdDate": null,
+      "expiryDate": null,
+      "statusCodes": [],
+      "registrantOrg": null,
+      "registrantCountry": null,
+      "redacted": true
+    },
+    "dns": {
+      "a": [],
+      "mx": [],
+      "ns": [],
+      "txt": []
+    },
+    "ip": null,
+    "certificate": null,
+    "fetchedAt": "2026-07-05T19:01:08.362Z"
+  },
+  "cachedAt": 1783278068362
+}

@@ -1,0 +1,1162 @@
+// SPA Tab Navigation Config
+const tabs = [
+  { buttonId: 'nav-dashboard', sectionId: 'view-section-dashboard', title: 'CASE REPORT' },
+  { buttonId: 'nav-archive', sectionId: 'view-section-archive', title: 'CASE ARCHIVE' },
+  { buttonId: 'nav-registry', sectionId: 'view-section-registry', title: 'REGISTRY RECORD' },
+  { buttonId: 'nav-logs', sectionId: 'view-section-logs', title: 'CASE AUDIT LOGS' },
+  { buttonId: 'nav-settings', sectionId: 'view-section-settings', title: 'SYSTEM SETTINGS' }
+];
+
+let activeTab = 'nav-dashboard';
+let currentCase = null; // Currently selected active case file
+let serverCases = [];   // Local cache of server cases
+let isBatchMode = false;
+
+function initTabs() {
+  tabs.forEach(tab => {
+    const btn = document.getElementById(tab.buttonId);
+    btn.addEventListener('click', () => {
+      switchTab(tab.buttonId);
+    });
+  });
+
+  // "New Case File" sidebar shortcut
+  document.getElementById('new-case-btn').addEventListener('click', () => {
+    currentCase = null;
+    document.getElementById('url-input').value = '';
+    document.getElementById('batch-url-input').value = '';
+    document.getElementById('reportView').classList.add('hidden');
+    document.getElementById('scanner-placeholder').classList.remove('hidden');
+    switchTab('nav-dashboard');
+    if (isBatchMode) {
+      document.getElementById('batch-url-input').focus();
+    } else {
+      document.getElementById('url-input').focus();
+    }
+  });
+
+  // View full logbook dashboard button shortcut
+  document.getElementById('view-logbook-btn').addEventListener('click', () => {
+    switchTab('nav-archive');
+  });
+}
+
+async function switchTab(buttonId) {
+  activeTab = buttonId;
+  tabs.forEach(tab => {
+    const btn = document.getElementById(tab.buttonId);
+    const section = document.getElementById(tab.sectionId);
+    
+    if (tab.buttonId === buttonId) {
+      // Active styling
+      btn.className = 'w-full flex items-center space-x-3 bg-background text-primary border-l-4 border-outline-variant px-4 py-3 font-bold font-data-mono text-label-sm uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]';
+      section.classList.remove('hidden');
+      document.getElementById('view-title').textContent = tab.title;
+    } else {
+      // Inactive styling
+      btn.className = 'w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent';
+      section.classList.add('hidden');
+    }
+  });
+
+  if (buttonId === 'nav-dashboard') {
+    updateDashboardStats();
+    if (currentCase) {
+      document.getElementById('reportView').classList.remove('hidden');
+      document.getElementById('scanner-placeholder').classList.add('hidden');
+    } else {
+      document.getElementById('reportView').classList.add('hidden');
+      document.getElementById('scanner-placeholder').classList.remove('hidden');
+    }
+  } else if (buttonId === 'nav-archive') {
+    await fetchCasesFromServer();
+    renderArchiveGrid();
+  } else if (buttonId === 'nav-registry') {
+    renderRegistryRecord();
+  }
+}
+
+// Server Database API integration
+async function fetchCasesFromServer() {
+  try {
+    const response = await fetch('/api/cases');
+    if (response.ok) {
+      serverCases = await response.json();
+    }
+  } catch (err) {
+    console.error('Failed to load cases from server database:', err);
+  }
+}
+
+async function clearArchiveOnServer() {
+  if (confirm("Are you sure you want to clear all archived case files from the server database?")) {
+    try {
+      const response = await fetch('/api/cases', { method: 'DELETE' });
+      if (response.ok) {
+        serverCases = [];
+        renderArchiveGrid();
+        currentCase = null;
+        updateDashboardStats();
+        document.getElementById('reportView').classList.add('hidden');
+        document.getElementById('scanner-placeholder').classList.remove('hidden');
+      } else {
+        alert('Failed to clear case database.');
+      }
+    } catch (err) {
+      alert('Network error connecting to server.');
+      console.error(err);
+    }
+  }
+}
+
+document.getElementById('clear-archive-btn').addEventListener('click', clearArchiveOnServer);
+
+// Local User Settings management
+const DEFAULT_SETTINGS = {
+  workerUrl: 'http://127.0.0.1:4000',
+  timeout: '10',
+  userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+};
+
+function getSettings() {
+  return {
+    workerUrl: localStorage.getItem('sentinel_worker_url') || DEFAULT_SETTINGS.workerUrl,
+    timeout: localStorage.getItem('sentinel_timeout') || DEFAULT_SETTINGS.timeout,
+    userAgent: localStorage.getItem('sentinel_user_agent') || DEFAULT_SETTINGS.userAgent
+  };
+}
+
+function initSettings() {
+  const config = getSettings();
+  
+  // Populate UI inputs
+  document.getElementById('setting-worker-url').value = config.workerUrl;
+  document.getElementById('setting-timeout').value = config.timeout;
+  document.getElementById('setting-timeout-val').textContent = `${config.timeout}s`;
+  document.getElementById('setting-user-agent').value = config.userAgent;
+
+  // Slider update event
+  document.getElementById('setting-timeout').addEventListener('input', (e) => {
+    document.getElementById('setting-timeout-val').textContent = `${e.target.value}s`;
+  });
+
+  // Save Settings
+  document.getElementById('settings-save-btn').addEventListener('click', () => {
+    localStorage.setItem('sentinel_worker_url', document.getElementById('setting-worker-url').value.trim());
+    localStorage.setItem('sentinel_timeout', document.getElementById('setting-timeout').value);
+    localStorage.setItem('sentinel_user_agent', document.getElementById('setting-user-agent').value.trim());
+    alert('System Configuration Saved.');
+  });
+
+  // Reset Settings
+  document.getElementById('settings-reset-btn').addEventListener('click', () => {
+    if (confirm("Reset configuration settings to factory defaults?")) {
+      localStorage.setItem('sentinel_worker_url', DEFAULT_SETTINGS.workerUrl);
+      localStorage.setItem('sentinel_timeout', DEFAULT_SETTINGS.timeout);
+      localStorage.setItem('sentinel_user_agent', DEFAULT_SETTINGS.userAgent);
+      
+      initSettings(); // Re-populate UI
+    }
+  });
+}
+
+
+// Case Log Console Printing (Animated Type-in Effect)
+let logsPrintingInterval = null;
+
+function renderLiveLogs(logsList) {
+  // Clear any active typing animation
+  if (logsPrintingInterval) {
+    clearInterval(logsPrintingInterval);
+  }
+
+  const terminal = document.getElementById('log-terminal');
+  terminal.innerHTML = '';
+  let index = 0;
+
+  function printLine() {
+    if (index < logsList.length) {
+      const line = logsList[index];
+      const div = document.createElement('div');
+      
+      // Determine line styling based on log contents
+      if (line.includes('ALERT:') || line.includes('failed') || line.includes('error') || line.includes('warning:')) {
+        div.className = 'font-data-mono text-sm leading-6 py-0.5 text-error opacity-0 transition-opacity duration-200';
+      } else if (line.includes('complete') || line.includes('persisted') || line.includes('CONCLUDED') || line.includes('successful') || line.includes('saved:')) {
+        div.className = 'font-data-mono text-sm leading-6 py-0.5 text-green-400 opacity-0 transition-opacity duration-200';
+      } else if (line.startsWith('---')) {
+        div.className = 'font-data-mono text-sm leading-6 py-1 text-yellow-400 font-bold opacity-0 transition-opacity duration-200';
+      } else {
+        div.className = 'font-data-mono text-sm leading-6 py-0.5 text-[#38BDF8] opacity-0 transition-opacity duration-200';
+      }
+
+      div.textContent = line;
+      terminal.appendChild(div);
+      
+      // Fade-in line
+      setTimeout(() => div.classList.remove('opacity-0'), 10);
+      
+      // Scroll to bottom
+      terminal.scrollTop = terminal.scrollHeight;
+      index++;
+    } else {
+      clearInterval(logsPrintingInterval);
+      logsPrintingInterval = null;
+    }
+  }
+
+  // Print first line immediately, then queue the rest
+  printLine();
+  logsPrintingInterval = setInterval(printLine, 100);
+}
+
+// Toggle Input Modes (Single vs. Batch Scan)
+function setBatchMode(active) {
+  isBatchMode = active;
+  const urlInput = document.getElementById('url-input');
+  const batchInput = document.getElementById('batch-url-input');
+  const toggleText = document.getElementById('batch-toggle-text');
+  const toggleBtn = document.getElementById('batch-toggle-btn');
+  const modeIcon = document.getElementById('input-mode-icon');
+  
+  if (active) {
+    urlInput.classList.add('hidden');
+    batchInput.classList.remove('hidden');
+    toggleText.textContent = 'SINGLE';
+    toggleBtn.classList.add('bg-primary-fixed', 'text-primary');
+    modeIcon.textContent = 'lists';
+    batchInput.focus();
+  } else {
+    urlInput.classList.remove('hidden');
+    batchInput.classList.add('hidden');
+    toggleText.textContent = 'BATCH';
+    toggleBtn.classList.remove('bg-primary-fixed', 'text-primary');
+    modeIcon.textContent = 'search';
+    urlInput.focus();
+  }
+}
+
+document.getElementById('batch-toggle-btn').addEventListener('click', () => {
+  setBatchMode(!isBatchMode);
+});
+
+// Client-side QR Code File Upload Scanner
+document.getElementById('qr-upload-btn').addEventListener('click', () => {
+  document.getElementById('qr-file-input').click();
+});
+
+document.getElementById('qr-file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const img = new Image();
+    img.onload = function() {
+      // Create canvas context to decode raw pixels via jsQR
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imgData.data, imgData.width, imgData.height);
+      
+      if (code && code.data) {
+        document.getElementById('url-input').value = code.data;
+        setBatchMode(false);
+        alert(`QR Code successfully decoded: ${code.data}`);
+        document.getElementById('scan-btn').click(); // Automatically trigger scan
+      } else {
+        alert("Failed to decode QR code. Ensure it has a clear QR matrix containing a URL.");
+      }
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = ''; // Reset file input
+});
+
+// Execute Scan Button Event Listener
+document.getElementById('scan-btn').addEventListener('click', async () => {
+  if (isBatchMode) {
+    const text = document.getElementById('batch-url-input').value.trim();
+    if (!text) return;
+    const urls = text.split('\n').map(u => u.trim()).filter(Boolean);
+    if (urls.length === 0) return;
+
+    await runBatchScan(urls);
+  } else {
+    const urlInput = document.getElementById('url-input').value.trim();
+    if (!urlInput) return;
+    await runSingleScan(urlInput);
+  }
+});
+
+// Single Scan Pipeline
+async function runSingleScan(urlInput) {
+  const btn = document.getElementById('scan-btn');
+  const originalText = btn.textContent;
+  btn.textContent = '[PROCESSING...]';
+  btn.disabled = true;
+  btn.classList.add('opacity-50', 'pointer-events-none');
+
+  // Pre-load Case Logs Console with initial status
+  switchTab('nav-logs');
+  const terminal = document.getElementById('log-terminal');
+  terminal.innerHTML = `
+    <div class="font-data-mono text-sm text-yellow-400 py-1 font-bold">[${new Date().toISOString().substring(11, 19)}] --- INITIATING DIAL CONNECTIONS ---</div>
+    <div class="font-data-mono text-sm text-[#38BDF8] py-0.5">[${new Date().toISOString().substring(11, 19)}] Querying Sentinel threat matrix configuration...</div>
+    <div class="font-data-mono text-sm text-[#38BDF8] py-0.5">[${new Date().toISOString().substring(11, 19)}] Contacting server API at /api/scan...</div>
+  `;
+
+  // Fetch scan options from settings
+  const config = getSettings();
+  const timeoutMs = parseInt(config.timeout) * 1000;
+
+  try {
+    const response = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        url: urlInput,
+        userAgent: config.userAgent,
+        timeout: timeoutMs
+      })
+    });
+    
+    if (!response.ok) throw new Error('API Error');
+    const caseFile = await response.json();
+    
+    currentCase = caseFile;
+    
+    // Add to serverCases local cache array
+    serverCases = serverCases.filter(c => c.url !== caseFile.url);
+    serverCases.unshift(caseFile);
+    updateDashboardStats();
+
+    // Live print case logs in console tab
+    renderLiveLogs(caseFile.logs || []);
+
+    // Switch to Dashboard report view after brief delay to let user see logs start
+    setTimeout(() => {
+      displayCaseReport(caseFile);
+      switchTab('nav-dashboard');
+    }, 2000);
+
+  } catch (error) {
+    const errorMsg = `[${new Date().toISOString().substring(11, 19)}] ERROR: Threat sweep failed to complete. Server unavailable.`;
+    const errDiv = document.createElement('div');
+    errDiv.className = 'font-data-mono text-sm py-1 text-error';
+    errDiv.textContent = errorMsg;
+    terminal.appendChild(errDiv);
+    
+    alert("Investigation aborted. Verify that both the server and worker are running.");
+    btn.textContent = originalText;
+    btn.disabled = false;
+    btn.classList.remove('opacity-50', 'pointer-events-none');
+    switchTab('nav-dashboard');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    btn.classList.remove('opacity-50', 'pointer-events-none');
+  }
+}
+
+// Batch Scan Pipeline
+async function runBatchScan(urls) {
+  const btn = document.getElementById('scan-btn');
+  const originalText = btn.textContent;
+  btn.textContent = '[BATCH RUN...]';
+  btn.disabled = true;
+  btn.classList.add('opacity-50', 'pointer-events-none');
+
+  switchTab('nav-logs');
+  const terminal = document.getElementById('log-terminal');
+  terminal.innerHTML = `
+    <div class="font-data-mono text-sm text-yellow-400 py-1 font-bold">[${new Date().toISOString().substring(11, 19)}] --- INITIATING BATCH WORKLOAD ---</div>
+    <div class="font-data-mono text-sm text-[#38BDF8] py-0.5">[${new Date().toISOString().substring(11, 19)}] Enqueuing ${urls.length} target sites for analysis...</div>
+  `;
+
+  try {
+    const response = await fetch('/api/scan/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls })
+    });
+    
+    if (!response.ok) throw new Error('Batch API Error');
+    const data = await response.json();
+    
+    terminal.innerHTML += `<div class="font-data-mono text-sm text-green-400 py-1 font-bold">[${new Date().toISOString().substring(11, 19)}] Batch sweep complete. Rendering results.</div>`;
+    
+    // Refresh cases and update stats
+    await fetchCasesFromServer();
+    updateDashboardStats();
+
+    setTimeout(() => {
+      renderBatchResults(data.results || []);
+      switchTab('nav-dashboard');
+    }, 1500);
+
+  } catch (error) {
+    const errorMsg = `[${new Date().toISOString().substring(11, 19)}] ERROR: Batch run aborted. Server connection lost.`;
+    const errDiv = document.createElement('div');
+    errDiv.className = 'font-data-mono text-sm py-1 text-error';
+    errDiv.textContent = errorMsg;
+    terminal.appendChild(errDiv);
+    
+    alert("Batch scan failed.");
+    switchTab('nav-dashboard');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    btn.classList.remove('opacity-50', 'pointer-events-none');
+  }
+}
+
+// Render Batch Results Table
+function renderBatchResults(results) {
+  const tbody = document.getElementById('batch-results-tbody');
+  tbody.innerHTML = '';
+  
+  results.forEach(res => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-primary-fixed/5 transition-colors border-b border-primary/10';
+    
+    let verdictColor = 'text-error';
+    if (res.priority === 'ROUTINE') verdictColor = 'text-primary';
+    else if (res.priority.includes('CAUTION')) verdictColor = 'text-verdict-caution';
+    
+    const risks = res.reasons && res.reasons.length > 0
+      ? res.reasons.slice(0, 2).join(', ') + (res.reasons.length > 2 ? '...' : '')
+      : 'Clean / Low Risk';
+      
+    tr.innerHTML = `
+      <td class="p-3 font-semibold break-all text-ink">${res.url}</td>
+      <td class="p-3 font-bold ${verdictColor}">${res.priority}</td>
+      <td class="p-3 font-bold">${res.score}/100</td>
+      <td class="p-3 text-on-surface-variant truncate max-w-xs">${risks}</td>
+      <td class="p-3">
+        ${res.id ? `
+          <button class="bg-primary text-background font-data-mono text-[10px] px-3 py-1.5 shadow-sm hover:scale-105 active:scale-95 transition-all load-batch-case-btn" data-id="${res.id}">
+            [VIEW]
+          </button>
+        ` : '<span class="text-error font-data-mono text-xs">FAILED</span>'}
+      </td>
+    `;
+    
+    tbody.appendChild(tr);
+  });
+  
+  // Attach buttons listeners to open reports
+  tbody.querySelectorAll('.load-batch-case-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.getAttribute('data-id');
+      try {
+        const caseResponse = await fetch(`/api/cases/${id}`);
+        if (caseResponse.ok) {
+          const caseFile = await caseResponse.json();
+          currentCase = caseFile;
+          displayCaseReport(caseFile);
+          switchTab('nav-dashboard');
+          document.getElementById('batchResultsView').classList.add('hidden');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  });
+  
+  document.getElementById('batchResultsView').classList.remove('hidden');
+}
+
+document.getElementById('batch-close-btn').addEventListener('click', () => {
+  document.getElementById('batchResultsView').classList.add('hidden');
+});
+
+// Star Monitor Watchlist event handler
+document.getElementById('watch-case-btn').addEventListener('click', async () => {
+  if (!currentCase) return;
+  const isNowWatched = !(currentCase.watched === true);
+  
+  try {
+    const response = await fetch(`/api/cases/${currentCase.id}/watch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ watched: isNowWatched })
+    });
+    
+    if (response.ok) {
+      currentCase.watched = isNowWatched;
+      
+      // Sync local cache
+      const localIdx = serverCases.findIndex(c => c.id === currentCase.id);
+      if (localIdx !== -1) {
+        serverCases[localIdx].watched = isNowWatched;
+      }
+      
+      displayCaseReport(currentCase);
+    }
+  } catch (err) {
+    console.error('Failed to update watch status:', err);
+  }
+});
+
+// Copy Shareable Link event handler
+document.getElementById('share-report-btn').addEventListener('click', () => {
+  if (!currentCase) return;
+  const shareUrl = `${window.location.origin}/api/cases/report/${currentCase.id}`;
+  navigator.clipboard.writeText(shareUrl)
+    .then(() => {
+      alert(`Standalone share link copied to clipboard:\n${shareUrl}`);
+    })
+    .catch(err => {
+      alert('Failed to copy link. Clipboard access blocked.');
+      console.error(err);
+    });
+});
+
+// Accuracy Feedback event handler
+document.getElementById('report-feedback-btn').addEventListener('click', async () => {
+  if (!currentCase) return;
+  const isNowInaccurate = currentCase.userFeedback === 'inaccurate' ? null : 'inaccurate';
+  
+  try {
+    const response = await fetch(`/api/cases/${currentCase.id}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback: isNowInaccurate })
+    });
+    
+    if (response.ok) {
+      currentCase.userFeedback = isNowInaccurate;
+      
+      // Sync local cache
+      const localIdx = serverCases.findIndex(c => c.id === currentCase.id);
+      if (localIdx !== -1) {
+        serverCases[localIdx].userFeedback = isNowInaccurate;
+      }
+      
+      displayCaseReport(currentCase);
+      renderArchiveGrid();
+    }
+  } catch (err) {
+    console.error('Failed to update feedback status:', err);
+  }
+});
+
+// Render Manila Folder Case Report
+function displayCaseReport(caseFile) {
+  // Hide placeholder and show report
+  document.getElementById('scanner-placeholder').classList.add('hidden');
+  const reportView = document.getElementById('reportView');
+  reportView.classList.remove('hidden');
+
+  // Fill in case metadata
+  document.getElementById('case-id-display').textContent = `CASE #${caseFile.id.substring(0, 8)}`;
+  document.getElementById('folder-tab-id').textContent = `CASE_${caseFile.id.substring(0, 8)}`;
+  document.getElementById('case-timestamp-display').textContent = `OPENED: ${caseFile.timestamp}`;
+  document.getElementById('case-priority-display').textContent = `PRIORITY: ${caseFile.priority}`;
+  
+  // Set case review status based on accuracy feedback
+  if (caseFile.userFeedback === 'inaccurate') {
+    document.getElementById('case-status-display').textContent = 'STATUS: UNDER AUDIT (RE-REVIEW)';
+    document.getElementById('case-status-display').className = 'font-data-mono text-label-sm text-error font-bold';
+  } else {
+    document.getElementById('case-status-display').textContent = 'STATUS: CONCLUDED';
+    document.getElementById('case-status-display').className = 'font-data-mono text-label-sm text-ink-variant';
+  }
+
+  // Investigator Notes
+  document.getElementById('investigator-notes').textContent = caseFile.notes;
+
+  // Star watch status UI updates
+  const starIcon = document.getElementById('watch-star-icon');
+  const watchText = document.getElementById('watch-btn-text');
+  if (caseFile.watched === true) {
+    starIcon.textContent = 'star';
+    starIcon.classList.add('text-yellow-500');
+    starIcon.classList.remove('text-on-surface-variant');
+    watchText.textContent = 'WATCHED';
+  } else {
+    starIcon.textContent = 'star_border';
+    starIcon.classList.remove('text-yellow-500');
+    starIcon.classList.add('text-on-surface-variant');
+    watchText.textContent = 'WATCH DOMAIN';
+  }
+
+  // Visual diff layout changes updates
+  const diffAlert = document.getElementById('visual-diff-alert');
+  if (caseFile.visualDiffPercent !== null && caseFile.visualDiffPercent !== undefined) {
+    diffAlert.textContent = `WARNING: Page layout changed by ${caseFile.visualDiffPercent}% since last audit.`;
+    diffAlert.classList.remove('hidden');
+  } else {
+    diffAlert.classList.add('hidden');
+  }
+
+  // Accuracy Feedback Button layout styling
+  const feedbackBtn = document.getElementById('report-feedback-btn');
+  const feedbackText = document.getElementById('feedback-btn-text');
+  if (caseFile.userFeedback === 'inaccurate') {
+    feedbackBtn.className = 'flex items-center gap-1 font-data-mono text-xs border border-error px-3 py-1.5 bg-error text-on-primary rounded hover:bg-error/90 hover:scale-105 active:scale-95 transition-all';
+    feedbackText.textContent = 'REPORT INACCURATE';
+  } else {
+    feedbackBtn.className = 'flex items-center gap-1 font-data-mono text-xs border border-outline-variant px-3 py-1.5 bg-paper rounded hover:bg-[#e4d9be] hover:scale-105 active:scale-95 transition-all';
+    feedbackText.textContent = 'MARK INACCURATE';
+  }
+
+  // Verdict Stamp Styling (Including inline score display)
+  const stampContainer = document.getElementById('verdict-stamp-container');
+  const stampText = document.getElementById('verdict-stamp-text');
+  
+  // Reset stamp animation
+  stampContainer.classList.remove('animate-stamp');
+  stampContainer.style.opacity = '0';
+  void stampContainer.offsetWidth; // force reflow
+  stampContainer.classList.add('animate-stamp');
+
+  if (caseFile.score >= 80) {
+    stampText.textContent = `CLEARED (${caseFile.score}/100)`;
+    stampText.className = 'border-4 border-outline-variant text-primary px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
+  } else if (caseFile.score >= 50) {
+    stampText.textContent = `CAUTION (${caseFile.score}/100)`;
+    stampText.className = 'border-4 border-secondary text-verdict-caution px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
+  } else {
+    stampText.textContent = `FLAGGED (${caseFile.score}/100)`;
+    stampText.className = 'border-4 border-error text-error px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
+  }
+
+  // Threat Category Badges
+  const categoryContainer = document.getElementById('threat-category-container');
+  categoryContainer.innerHTML = '';
+  if (caseFile.threatCategories && caseFile.threatCategories.length > 0) {
+    caseFile.threatCategories.forEach(cat => {
+      const badge = document.createElement('span');
+      badge.className = 'bg-error/10 text-error border border-error/25 text-[9px] uppercase font-data-mono px-2 py-0.5 rounded font-bold';
+      badge.textContent = cat;
+      categoryContainer.appendChild(badge);
+    });
+  }
+
+  // Confidence Indicator Badge
+  const confidenceDisplay = document.getElementById('case-confidence-display');
+  confidenceDisplay.textContent = `CONFIDENCE: ${caseFile.confidence || 'HIGH'}`;
+  if (caseFile.confidence === 'HIGH') {
+    confidenceDisplay.className = 'font-data-mono text-[10px] text-green-600 mt-1 font-bold';
+  } else if (caseFile.confidence === 'MEDIUM') {
+    confidenceDisplay.className = 'font-data-mono text-[10px] text-yellow-600 mt-1 font-bold';
+  } else {
+    confidenceDisplay.className = 'font-data-mono text-[10px] text-error mt-1 font-bold';
+  }
+
+  // Inline redirects trail breadcrumbs
+  const inlineTrail = document.getElementById('redirect-inline-trail');
+  if (caseFile.redirectChain && caseFile.redirectChain.length > 0) {
+    inlineTrail.classList.remove('hidden');
+    const cleanChain = caseFile.redirectChain.map(url => {
+      try { return new URL(url).hostname || url; } catch(e) { return url; }
+    }).join(' → ');
+    inlineTrail.innerHTML = `<span class="text-primary font-bold uppercase">REDIRECT PATHWAY:</span> ${cleanChain}`;
+  } else {
+    inlineTrail.classList.add('hidden');
+  }
+
+  // Render screenshot (Exhibit A)
+  const screenshotImg = document.getElementById('screenshot-img');
+  const screenshotPlaceholder = document.getElementById('screenshot-placeholder');
+  const exhibitFrame = document.getElementById('exhibit-frame');
+  const screenshotTs = document.getElementById('screenshot-timestamp');
+  const overlayContainer = document.getElementById('screenshot-overlay-container');
+
+  // Clear visual highlighter boxes
+  overlayContainer.innerHTML = '';
+
+  if (caseFile.screenshot) {
+    screenshotImg.src = `data:image/png;base64,${caseFile.screenshot}`;
+    screenshotImg.classList.remove('hidden');
+    screenshotPlaceholder.classList.add('hidden');
+    exhibitFrame.classList.remove('hidden');
+    
+    // Add paper frame styling
+    exhibitFrame.className = 'bg-paper p-4 border border-outline-variant shadow-md transform rotate-2 relative transition-all duration-300';
+    screenshotTs.textContent = `FILE: CAPTURE_SCR_${caseFile.id.substring(0, 8)}.JPG // SANDBOXED`;
+
+    // Render brand annotations overlays dynamically over the screenshot
+    if (caseFile.brandAnnotations && caseFile.brandAnnotations.length > 0) {
+      caseFile.brandAnnotations.forEach(ann => {
+        const overlay = document.createElement('div');
+        overlay.className = 'absolute border-2 border-error bg-error/15 pointer-events-auto cursor-help group/tooltip';
+        overlay.style.top = ann.top;
+        overlay.style.left = ann.left;
+        overlay.style.width = ann.width;
+        overlay.style.height = ann.height;
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = 'hidden group-hover/tooltip:block absolute bottom-full left-1/2 -translate-x-1/2 bg-error text-on-primary font-data-mono text-[9px] p-2 rounded whitespace-nowrap shadow-lg border border-outline-variant z-50 mb-2';
+        tooltip.innerHTML = `⚠️ ${ann.reason} (${ann.brandName})`;
+        
+        overlay.appendChild(tooltip);
+        overlayContainer.appendChild(overlay);
+      });
+    }
+  } else {
+    screenshotImg.src = '';
+    screenshotImg.classList.add('hidden');
+    screenshotPlaceholder.classList.remove('hidden');
+    exhibitFrame.className = 'bg-paper p-8 border border-dashed border-outline-variant relative text-center';
+    screenshotTs.textContent = 'NO ATTACHMENT CAPTURED';
+  }
+
+  // Surfaced threat feeds matching banner
+  const feedsBanner = document.getElementById('threat-feeds-banner');
+  if (caseFile.threatFeedsMatched && caseFile.threatFeedsMatched.length > 0) {
+    feedsBanner.classList.remove('hidden');
+    document.getElementById('threat-feeds-banner-text').innerHTML = `
+      MATCHED THREAT FEEDS: <span class="bg-red-950 text-white px-2 py-0.5 rounded font-bold">${caseFile.threatFeedsMatched.join(', ').toUpperCase()}</span>
+    `;
+  } else {
+    feedsBanner.classList.add('hidden');
+  }
+
+  // Render Pinned Evidence Log Tags
+  const reasonsList = document.getElementById('reasons-list');
+  reasonsList.innerHTML = '';
+  
+  if (caseFile.reasons.length === 0) {
+    const div = document.createElement('div');
+    div.className = 'pin-tag bg-paper-container-lowest folder-texture p-3 pin-hole shadow-sm';
+    div.innerHTML = `<div class="font-data-mono text-data-mono text-on-surface-variant italic">No risk indicators flagged during audit.</div>`;
+    reasonsList.appendChild(div);
+  } else {
+    caseFile.reasons.forEach((reason, index) => {
+      const div = document.createElement('div');
+      div.className = 'pin-tag bg-paper-container-lowest folder-texture p-3 pin-hole shadow-sm opacity-0 translate-x-4 transition-all duration-500';
+      div.style.transitionDelay = `${index * 80}ms`;
+      div.innerHTML = `<div class="font-data-mono text-data-mono text-ink">${reason}</div>`;
+      reasonsList.appendChild(div);
+      
+      // Trigger fade in
+      setTimeout(() => {
+        div.classList.remove('opacity-0', 'translate-x-4');
+      }, 50);
+    });
+  }
+
+
+
+  // Redirect chain trail display
+  const redirectsCard = document.getElementById('redirects-card');
+  const redirectsList = document.getElementById('redirects-list');
+  redirectsList.innerHTML = '';
+
+  if (caseFile.redirectChain && caseFile.redirectChain.length > 0) {
+    redirectsCard.classList.remove('hidden');
+    caseFile.redirectChain.forEach((url, i) => {
+      const isTarget = (i === caseFile.redirectChain.length - 1);
+      const div = document.createElement('div');
+      
+      if (isTarget) {
+        div.className = 'bg-error text-on-primary border border-outline-variant px-4 py-2 font-data-mono text-label-sm z-10 font-bold';
+      } else {
+        div.className = 'bg-paper-container paper-texture border border-outline-variant px-4 py-2 font-data-mono text-label-sm z-10';
+      }
+      
+      let label = url;
+      try {
+        label = new URL(url).hostname || url;
+      } catch (e) {}
+      
+      div.textContent = `${i === 0 ? 'START: ' : '→ '} ${label}`;
+      redirectsList.appendChild(div);
+    });
+  } else {
+    redirectsCard.classList.add('hidden');
+  }
+
+  // 3D paper hover tilt effect
+  exhibitFrame.onmousemove = (e) => {
+    const rect = exhibitFrame.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    exhibitFrame.style.transform = `rotate(${2 + x * 4}deg) translate(${x * 8}px, ${y * 8}px)`;
+  };
+  
+  exhibitFrame.onmouseleave = () => {
+    exhibitFrame.style.transform = 'rotate(2deg) translate(0px, 0px)';
+  };
+}
+
+// Render Evidence Bin (Archive) Grid
+function renderArchiveGrid() {
+  const grid = document.getElementById('archive-grid');
+  const emptyState = document.getElementById('archive-empty-state');
+  grid.innerHTML = '';
+
+  if (serverCases.length === 0) {
+    emptyState.classList.remove('hidden');
+    grid.classList.add('hidden');
+    return;
+  }
+
+  emptyState.classList.add('hidden');
+  grid.classList.remove('hidden');
+
+  serverCases.forEach((c) => {
+    const entry = document.createElement('div');
+    entry.className = 'relative group cursor-pointer';
+    
+    let verdictColor = 'text-error border-error';
+    if (c.score >= 80) verdictColor = 'text-primary border-outline-variant';
+    else if (c.score >= 50) verdictColor = 'text-verdict-caution border-secondary';
+
+    const displayDomain = c.url.replace('https://', '').replace('http://', '').split('/')[0];
+    
+    // Star watch tab indicators and alert notifications
+    const watchIconHtml = c.watched ? `<span class="material-symbols-outlined text-[15px] text-yellow-500 ml-2" title="Watched Domain">star</span>` : '';
+    const alertBorderClass = c.alert ? 'border-2 border-red-500 animate-pulse shadow-[0px_0px_10px_rgba(239,68,68,0.5)]' : 'border-outline-variant';
+    const feedbackWarningHtml = c.userFeedback === 'inaccurate' ? `<span class="bg-error text-on-primary text-[8px] font-data-mono px-1.5 py-0.5 rounded uppercase font-bold ml-2 animate-pulse" title="Flagged Inaccurate">AUDIT</span>` : '';
+
+    entry.innerHTML = `
+      <!-- Manila Folder Tab -->
+      <div class="folder-tab bg-secondary-container w-48 h-10 border-t border-l border-r border-outline-variant flex items-center px-4 font-data-mono text-[11px] font-bold text-ink">
+        CASE_ID: #${c.id.substring(0, 8)} ${watchIconHtml} ${feedbackWarningHtml}
+      </div>
+      <!-- The Page Surface -->
+      <div class="paper-stack relative bg-paper-container-lowest border ${alertBorderClass} p-folder-padding shadow-[4px_4px_0px_0px_rgba(0,0,0,0.4)] transition-transform duration-300 group-hover:-translate-y-1 min-h-[300px] flex flex-col justify-between">
+        <div>
+          <div class="flex justify-between items-start mb-6">
+            <div class="space-y-1 flex-grow truncate">
+              <p class="font-data-mono text-label-sm text-on-surface-variant">TIMESTAMP: ${c.timestamp.split(' // ')[0]}</p>
+              <p class="font-data-mono text-label-sm text-primary font-bold break-all">TARGET: ${displayDomain}</p>
+            </div>
+            <div class="verdict-stamp ${verdictColor} text-[16px] px-3 py-1 opacity-90 scale-90 flex-shrink-0">
+              ${c.score >= 80 ? 'CLEARED' : (c.score >= 50 ? 'CAUTION' : 'FLAGGED')}
+            </div>
+          </div>
+          <div class="border-t border-outline-variant pt-4 mb-6">
+            <h3 class="font-display-lg text-primary mb-2 truncate">${c.url}</h3>
+            <p class="font-body-md text-ink-variant line-clamp-3">
+              ${c.notes}
+            </p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center mt-4">
+          <span class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2 py-0.5">SCORE: ${c.score}/100</span>
+          <button class="font-data-mono text-label-sm underline hover:text-primary transition-colors view-report-btn">
+            VIEW FULL REPORT [→]
+          </button>
+        </div>
+        
+        <!-- Pinned attachment thumbnail preview -->
+        ${c.screenshot ? `
+          <div class="absolute -right-4 -bottom-4 w-28 h-28 border border-outline-variant bg-paper p-1 rotate-6 shadow-lg z-10 hidden sm:block">
+            <div class="w-full h-full relative">
+              <img class="w-full h-full object-cover grayscale-[0.2]" src="data:image/png;base64,${c.screenshot}"/>
+              <div class="absolute top-0 left-0 w-8 h-3 tape-effect rotate-[-45deg] translate-x-[-10px] translate-y-[-4px]"></div>
+              <div class="absolute top-0 right-0 w-8 h-3 tape-effect rotate-[45deg] translate-x-[10px] translate-y-[-4px]"></div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    entry.querySelector('.view-report-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCaseReport(c);
+    });
+    entry.addEventListener('click', () => {
+      openCaseReport(c);
+    });
+
+    grid.appendChild(entry);
+  });
+}
+
+function openCaseReport(c) {
+  currentCase = c;
+  
+  // Clear monitor alert if user reviews the case
+  if (c.alert) {
+    c.alert = false;
+    fetch(`/api/cases/${c.id}/watch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ watched: c.watched === true }) // implicitly clears alert in store updates
+    });
+    
+    // Silently update local store representation
+    const localIdx = serverCases.findIndex(sc => sc.id === c.id);
+    if (localIdx !== -1) {
+      serverCases[localIdx].alert = false;
+    }
+  }
+
+  displayCaseReport(c);
+  switchTab('nav-dashboard');
+}
+
+// Render Printed Official Public Registry Lookup Record Sheet
+function renderRegistryRecord() {
+  const emptyState = document.getElementById('registry-empty-state');
+  const content = document.getElementById('registry-record-content');
+  
+  const activeCaseFile = currentCase || serverCases[0];
+  if (!activeCaseFile || !activeCaseFile.registryRecord) {
+    emptyState.classList.remove('hidden');
+    return;
+  }
+
+  emptyState.classList.add('hidden');
+  const record = activeCaseFile.registryRecord;
+
+  document.getElementById('registry-case-id').textContent = activeCaseFile.id.substring(0, 8);
+  document.getElementById('registry-fetched-at').textContent = `fetchedAt: ${record.fetchedAt ? record.fetchedAt.replace('T', ' // ').substring(0, 21) : activeCaseFile.timestamp}`;
+
+  function formatDotRow(label, value) {
+    const dotsCount = Math.max(3, 40 - label.length);
+    const dots = '.'.repeat(dotsCount);
+    return `
+      <div class="flex justify-between font-data-mono text-xs whitespace-pre my-1.5 border-b border-dashed border-gray-100 pb-1">
+        <span class="text-gray-500 uppercase font-bold">${label} ${dots}</span>
+        <span class="font-bold text-ink text-right break-all max-w-md">${value || '(unavailable)'}</span>
+      </div>
+    `;
+  }
+
+  // 1. Registration
+  const reg = record.registration || {};
+  const createdStr = reg.createdDate ? `${reg.createdDate.substring(0, 10)} (${Math.round((Date.now() - new Date(reg.createdDate).getTime()) / (1000 * 60 * 60 * 24))} days ago)` : '(unavailable)';
+  const expiryStr = reg.expiryDate ? reg.expiryDate.substring(0, 10) : '(unavailable)';
+  const statusStr = reg.statusCodes && reg.statusCodes.length > 0 ? reg.statusCodes.join(', ') : '(unavailable)';
+  
+  let registrationHtml = `
+    <div>
+      <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">REGISTRATION</h3>
+      ${formatDotRow('Registrar', reg.registrar)}
+      ${formatDotRow('Created', createdStr)}
+      ${formatDotRow('Expires', expiryStr)}
+      ${formatDotRow('Status', statusStr)}
+      ${formatDotRow('Registrant Org', reg.registrantOrg)}
+      ${formatDotRow('Registrant Country', reg.registrantCountry)}
+    </div>
+  `;
+
+  // 2. DNS Records
+  const dns = record.dns || { a: [], mx: [], ns: [], txt: [] };
+  const aStr = dns.a && dns.a.length > 0 ? dns.a.join(', ') : '(none found)';
+  const mxStr = dns.mx && dns.mx.length > 0 ? dns.mx.join(', ') : '(none found)';
+  const nsStr = dns.ns && dns.ns.length > 0 ? dns.ns.join(', ') : '(none found)';
+  const txtStr = dns.txt && dns.txt.length > 0 ? dns.txt.join(', ') : '(none found)';
+
+  let dnsHtml = `
+    <div class="mt-6">
+      <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">DNS RECORDS</h3>
+      ${formatDotRow('A', aStr)}
+      ${formatDotRow('MX', mxStr)}
+      ${formatDotRow('NS', nsStr)}
+      ${formatDotRow('TXT', txtStr)}
+    </div>
+  `;
+
+  // 3. Network Geolocation
+  const ip = record.ip || {};
+  let networkHtml = `
+    <div class="mt-6">
+      <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">NETWORK GEOLOCATION</h3>
+      ${formatDotRow('IP Address', ip.ip)}
+      ${formatDotRow('Hosting Org', ip.org)}
+      ${formatDotRow('ISP Operator', ip.isp)}
+      ${formatDotRow('ASN', ip.asn)}
+      ${formatDotRow('Location', ip.ip ? `${ip.city}, ${ip.region}, ${ip.country}` : null)}
+    </div>
+  `;
+
+  // 4. SSL Certificate History
+  const cert = record.certificate || {};
+  const certIssuedStr = cert.issuedAt ? `${new Date(cert.issuedAt).toISOString().substring(0, 10)} (${Math.round((Date.now() - new Date(cert.issuedAt).getTime()) / (1000 * 60 * 60 * 24))} days ago)` : '(unavailable)';
+  const certExpiryStr = cert.notAfter ? new Date(cert.notAfter).toISOString().substring(0, 10) : '(unavailable)';
+
+  let certHtml = `
+    <div class="mt-6">
+      <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">SSL CERTIFICATE</h3>
+      ${formatDotRow('Issuer', cert.issuer)}
+      ${formatDotRow('Issued', certIssuedStr)}
+      ${formatDotRow('Valid Until', certExpiryStr)}
+      ${formatDotRow('Certificates on Record', cert.totalCertsFound !== undefined ? cert.totalCertsFound.toString() : null)}
+    </div>
+  `;
+
+  // 5. Redirect chain pathway listing
+  const chain = activeCaseFile.redirectChain || [activeCaseFile.url];
+  const redirectsListHtml = chain.map((url, i) => {
+    let hostname = url;
+    try { hostname = new URL(url).hostname || url; } catch(e) {}
+    return `[Hop #${i+1}] ${hostname}`;
+  }).join(' → ');
+  
+  let redirectHtml = `
+    <div class="bg-surface-variant border border-outline-variant p-4 rounded mt-6">
+      <h3 class="font-bold text-xs text-gray-600 mb-2 uppercase tracking-wide">REDIRECT PATHWAY</h3>
+      <div class="text-xs break-all leading-normal text-gray-700 font-data-mono">${redirectsListHtml}</div>
+    </div>
+  `;
+
+  content.innerHTML = registrationHtml + dnsHtml + networkHtml + certHtml + redirectHtml;
+}
+
+// App Initialization
+window.addEventListener('DOMContentLoaded', async () => {
+  // Always enforce light mode — remove any stale dark mode pref from localStorage
+  localStorage.removeItem('sentinel_dark_mode');
+  document.documentElement.classList.remove('dark');
+  document.documentElement.classList.add('light');
+
+  initTabs();
+  initSettings();
+  
+  // Load past cases from server
+  await fetchCasesFromServer();
+
+  // Always compute stats and list intake logs
+  updateDashboardStats();
+
+  // Start with morning briefing by default
+  currentCase = null;
+  document.getElementById('reportView').classList.add('hidden');
+  document.getElementById('scanner-placeholder').classList.remove('hidden');
+});
+
+function updateDashboardStats() {
+  // 1. Total Open Cases
+  const openCasesCount = serverCases.length;
+  document.getElementById('stats-open-cases').textContent = openCasesCount;
+
+  // 2. Flagged Today
+  // Count cases created today (local date matches current local date) with score < 50
+  const todayStr = new Date().toDateString(); // e.g. "Mon Jul 06 2026"
+  const flaggedToday = serverCases.filter(c => {
+    if (!c.createdAt) return false;
+    const caseDateStr = new Date(c.createdAt).toDateString();
+    return caseDateStr === todayStr && c.score < 50;
+  }).length;
+  document.getElementById('stats-flagged-today').textContent = String(flaggedToday).padStart(2, '0');
+
+  // 3. Average Score
+  let avgScore = 0;
+  if (serverCases.length > 0) {
+    const totalScore = serverCases.reduce((sum, c) => sum + (c.score || 0), 0);
+    avgScore = Math.round(totalScore / serverCases.length);
+  }
+  document.getElementById('stats-avg-score').textContent = avgScore;
+
+  // 4. Verdict Tally (Malicious: < 50, Suspicious: 50-79, Benign: >= 80)
+  let maliciousCount = 0;
+  let suspiciousCount = 0;
+  let benignCount = 0;
+
+  serverCases.forEach(c => {
+    const score = c.score || 0;
+    if (score < 50) maliciousCount++;
+    else if (score < 80) suspiciousCount++;
+    else benignCount++;
+  });
+
+  const totalTally = serverCases.length || 1;
+  const malPct = Math.round((maliciousCount / totalTally) * 100);
+  const susPct = Math.round((suspiciousCount / totalTally) * 100);
+  const benPct = Math.round((benignCount / totalTally) * 100);
+
+  // Update percentages
+  document.getElementById('tally-malicious-pct').textContent = `${malPct}%`;
+  document.getElementById('tally-suspicious-pct').textContent = `${susPct}%`;
+  document.getElementById('tally-benign-pct').textContent = `${benPct}%`;
+
+  // Update progress bars
+  document.getElementById('tally-malicious-bar').style.width = `${malPct}%`;
+  document.getElementById('tally-suspicious-bar').style.width = `${susPct}%`;
+  document.getElementById('tally-benign-bar').style.width = `${benPct}%`;
+
+  // Update Briefing risk summary
+  const summaryEl = document.getElementById('briefing-risk-summary');
+  if (serverCases.length === 0) {
+    summaryEl.textContent = "No scan history compiled yet. Initiate a scan to visualize risk distributions.";
+  } else {
+    summaryEl.textContent = `Intake analysis concludes: ${malPct}% of audited cases are flagged as high risk (MALICIOUS). Suspicious domains comprise ${susPct}%, with benign entities covering the remaining ${benPct}%.`;
+  }
+
+  // Update current session timestamp header
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} HRS // ENCRYPTED SESSION`;
+  document.getElementById('briefing-time-display').textContent = timeStr;
+
+  // Update log reference
+  const logRefStr = `REF: LOG-${now.getFullYear()}-${now.toLocaleString('default', { month: 'short' }).toUpperCase()}-${String(now.getDate()).padStart(2, '0')}`;
+  document.getElementById('briefing-log-ref').textContent = logRefStr;
+
+  // Render the intake log items
+  renderIntakeLog();
+}
+
+function renderIntakeLog() {
+  const container = document.getElementById('intake-log-list');
+  container.innerHTML = '';
+
+  const recent = serverCases.slice(0, 6);
+
+  if (recent.length === 0) {
+    container.innerHTML = `
+      <div class="h-12 flex items-center justify-center font-data-mono text-on-surface-variant text-xs italic">
+        [NO ENTRIES IN CURRENT LEDGER]
+      </div>
+    `;
+    return;
+  }
+
+  recent.forEach(c => {
+    const dateObj = c.createdAt ? new Date(c.createdAt) : new Date();
+    const timeStr = `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}:${String(dateObj.getSeconds()).padStart(2, '0')}`;
+    
+    // Determine priority badge and coloring
+    let badgeText = 'BENIGN';
+    let badgeClass = 'text-verdict-green border-verdict-green';
+    if (c.score < 50) {
+      badgeText = 'FLAGGED';
+      badgeClass = 'text-verdict-red border-error';
+    } else if (c.score < 80) {
+      badgeText = 'SUSPICIOUS';
+      badgeClass = 'text-verdict-amber border-verdict-amber';
+    }
+
+    const row = document.createElement('div');
+    row.className = 'h-11 flex items-center justify-between px-2 group hover:bg-paper-container/40 transition-colors duration-150 border-t border-outline-variant/30';
+    
+    row.innerHTML = `
+      <div class="flex items-center gap-6">
+        <span class="font-data-mono text-label-sm text-on-surface-variant opacity-60">${timeStr}</span>
+        <span class="font-data-mono text-data-mono font-bold text-ink truncate max-w-[200px] sm:max-w-xs md:max-w-md cursor-pointer hover:underline text-left block" title="${c.url}">${c.url}</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="font-data-mono text-[10px] border px-2 py-0.5 tracking-wider ${badgeClass}">${badgeText}</span>
+        <button class="material-symbols-outlined text-sm text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95 duration-100 view-case-link" data-id="${c.id}" title="Inspect Case File">
+          open_in_new
+        </button>
+      </div>
+    `;
+
+    // Click triggers
+    const loadReport = () => {
+      currentCase = c;
+      displayCaseReport(c);
+      document.getElementById('scanner-placeholder').classList.add('hidden');
+      document.getElementById('reportView').classList.remove('hidden');
+      switchTab('nav-dashboard');
+    };
+
+    row.querySelector('.font-bold').addEventListener('click', loadReport);
+    row.querySelector('.view-case-link').addEventListener('click', loadReport);
+
+    container.appendChild(row);
+  });
+}

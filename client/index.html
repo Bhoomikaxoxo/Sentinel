@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>SENTINEL AI | Threat Analysis Terminal</title>
+  
+  <!-- Tailwind CSS CDN with plugins -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Client-side QR Code Decoder -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "background": "#fbf9f9",
+            "on-background": "#1b1c1c",
+            "surface": "#fbf9f9",
+            "on-surface": "#1b1c1c",
+            "surface-container": "#f0edee",
+            "surface-container-low": "#f5f3f3",
+            "surface-container-high": "#eae7e8",
+            "surface-container-highest": "#e4e2e2",
+            "surface-container-lowest": "#ffffff",
+            "primary": "#09151e",
+            "on-primary": "#ffffff",
+            "secondary": "#6a5e38",
+            "on-secondary": "#ffffff",
+            "secondary-container": "#f0dfaf",
+            "on-secondary-container": "#6e623c",
+            "secondary-fixed": "#f3e1b2",
+            "on-secondary-fixed-variant": "#514623",
+            "primary-fixed": "#d7e4f0",
+            "outline": "#74777b",
+            "outline-variant": "#c4c7cb",
+            "ink": "#1b1c1c",
+            "ink-variant": "#74777b",
+            "manila": "#e4d9be",
+            "paper": "#ffffff",
+            "paper-variant": "#f5f3f3",
+            "error": "#ba1a1a",
+            "on-error": "#ffffff",
+            "verdict-red": "#ba1a1a",
+            "verdict-amber": "#6a5e38",
+            "verdict-green": "#386a20"
+          },
+          "borderRadius": {
+            "DEFAULT": "0px",
+            "lg": "0px",
+            "xl": "0px",
+            "full": "0px"
+          },
+          "spacing": {
+            "stack-offset": "8px",
+            "gutter": "24px",
+            "unit": "4px",
+            "margin-page": "40px",
+            "folder-padding": "32px"
+          },
+          "fontFamily": {
+            "body-lg": ["Newsreader"],
+            "headline-md": ["Barlow Condensed"],
+            "body-md": ["Newsreader"],
+            "data-mono": ["IBM Plex Mono"],
+            "display-lg": ["Barlow Condensed"],
+            "label-sm": ["IBM Plex Mono"]
+          },
+          "fontSize": {
+            "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+            "headline-md": ["24px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+            "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+            "data-mono": ["14px", {"lineHeight": "1.4", "fontWeight": "500"}],
+            "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "0.1em", "fontWeight": "700"}],
+            "label-sm": ["12px", {"lineHeight": "1.0", "fontWeight": "700"}]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-surface-container-high text-on-background min-h-screen font-body-md overflow-x-hidden">
+  <div class="flex h-screen overflow-hidden">
+    <!-- Side Navigation Bar -->
+    <aside class="flex flex-col h-full py-folder-padding border-r border-outline-variant bg-secondary-container w-64 shadow-[4px_0px_0px_0px_rgba(0,0,0,0.4)] z-20 shrink-0">
+      <div class="px-6 mb-10">
+        <h1 class="font-display-lg text-headline-md text-ink leading-none tracking-wide">SENTINEL AI</h1>
+        <p class="font-data-mono text-label-sm uppercase mt-2 text-on-surface-variant">INVESTIGATOR</p>
+        <p class="font-data-mono text-label-sm opacity-60">ID: 9928-TX</p>
+      </div>
+      
+      <nav class="flex-1 space-y-1">
+        <button id="nav-dashboard" class="w-full flex items-center space-x-3 bg-background text-primary border-l-4 border-outline-variant px-4 py-3 font-bold font-data-mono text-label-sm uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]">
+          <span class="material-symbols-outlined">dashboard</span>
+          <span>DASHBOARD</span>
+        </button>
+        <button id="nav-archive" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
+          <span class="material-symbols-outlined">folder_open</span>
+          <span>EVIDENCE BIN</span>
+        </button>
+        <button id="nav-registry" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
+          <span class="material-symbols-outlined">description</span>
+          <span>REGISTRY RECORD</span>
+        </button>
+        <button id="nav-logs" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
+          <span class="material-symbols-outlined">assignment</span>
+          <span>CASE LOGS</span>
+        </button>
+        <button id="nav-settings" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
+          <span class="material-symbols-outlined">settings</span>
+          <span>SYSTEM SETTINGS</span>
+        </button>
+      </nav>
+      
+      <div class="px-4 mt-auto">
+        <button id="new-case-btn" class="w-full bg-primary text-background font-data-mono text-label-sm py-3 flex items-center justify-center space-x-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:translate-y-[1px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)] transition-all">
+          <span class="material-symbols-outlined text-[18px]">add</span>
+          <span>NEW CASE FILE</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Canvas -->
+    <main class="flex-1 overflow-y-auto p-margin-page relative">
+      <!-- Top header strip -->
+      <div class="flex justify-between items-center h-16 w-full border-b border-outline-variant mb-12">
+        <div class="flex space-x-8">
+          <span class="font-display-lg text-headline-md uppercase tracking-widest text-primary font-bold border-b-2 border-outline-variant" id="view-title">CASE REPORT</span>
+        </div>
+        <div class="text-right font-data-mono text-[10px] text-on-surface-variant">
+          SECURE CONNECTION: TERMINAL_TX_9928
+        </div>
+      </div>
+
+      <!-- VIEW 1: DASHBOARD (SCANNER) -->
+      <div id="view-section-dashboard" class="space-y-gutter">
+        <!-- Input section -->
+        <section class="relative">
+          <h1 class="font-display-lg text-display-lg text-primary mb-8">OPEN A CASE.</h1>
+          <div class="relative max-w-2xl">
+            <!-- Folder Tab Decoration -->
+            <div class="inline-flex">
+              <div class="bg-secondary-container folder-texture border-t border-l border-r border-outline-variant px-4 py-1 font-data-mono text-label-sm text-ink">
+                NEW CASE
+              </div>
+            </div>
+            <!-- Input Box -->
+            <div class="bg-paper paper-texture border border-outline-variant p-2 flex flex-col md:flex-row md:items-center shadow-[4px_4px_0px_0px_rgba(9,21,30,0.1)] gap-2">
+              <div class="flex items-center flex-grow">
+                <span class="material-symbols-outlined px-4 text-on-surface-variant" id="input-mode-icon">search</span>
+                <input class="flex-grow bg-transparent border-none focus:ring-0 font-data-mono text-data-mono placeholder:text-on-surface-variant py-4" id="url-input" placeholder="ENTER DOMAIN OR URL TO SCAN..." type="text"/>
+                <textarea class="flex-grow bg-transparent border-none focus:ring-0 font-data-mono text-data-mono placeholder:text-on-surface-variant py-2 hidden" id="batch-url-input" placeholder="ENTER MULTIPLE URLS (ONE PER LINE, MAX 20)..." rows="3"></textarea>
+              </div>
+              
+              <div class="flex items-center gap-2 px-2 pb-2 md:pb-0">
+                <!-- QR Scanner Hidden File Input -->
+                <input type="file" id="qr-file-input" accept="image/*" class="hidden" />
+                <button id="qr-upload-btn" type="button" class="bg-secondary-container text-ink border border-outline-variant px-3 py-2.5 font-data-mono text-label-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)] flex items-center gap-1 hover:bg-secondary-fixed transition-all" title="Upload QR Code Image">
+                  <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
+                  <span>QR</span>
+                </button>
+                
+                <button id="batch-toggle-btn" type="button" class="bg-secondary-container text-ink border border-outline-variant px-3 py-2.5 font-data-mono text-label-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)] flex items-center gap-1 hover:bg-secondary-fixed transition-all" title="Toggle Batch Scan Mode">
+                  <span class="material-symbols-outlined text-[18px]">lists</span>
+                  <span id="batch-toggle-text">BATCH</span>
+                </button>
+
+                <button class="bg-primary text-on-primary px-8 py-3 font-data-mono text-label-sm hover:bg-primary/90 active:scale-95 transition-all" id="scan-btn">
+                  [SCAN]
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Batch Results Section -->
+        <section class="relative mt-8 hidden" id="batchResultsView">
+          <div class="bg-secondary-container folder-texture border border-outline-variant p-6 shadow-md rounded">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="font-data-mono text-lg font-bold text-primary">BATCH INVESTIGATION RESULTS</h2>
+              <button id="batch-close-btn" class="font-data-mono text-label-sm underline hover:text-primary">
+                [CLOSE RESULTS]
+              </button>
+            </div>
+            <div class="overflow-x-auto bg-paper border border-outline-variant rounded">
+              <table class="w-full text-left font-data-mono text-sm border-collapse">
+                <thead>
+                  <tr class="border-b border-primary/20 bg-primary-fixed/20 text-primary">
+                    <th class="p-3">TARGET URL</th>
+                    <th class="p-3">VERDICT</th>
+                    <th class="p-3">SCORE</th>
+                    <th class="p-3">RISKS SUMMARY</th>
+                    <th class="p-3">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody id="batch-results-tbody" class="divide-y divide-primary/10">
+                  <!-- Dynamically populated rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Dynamic Manila Folder Report Section -->
+        <section class="relative mt-12 hidden" id="reportView">
+          <!-- Folder Container -->
+          <div class="bg-secondary-container folder-texture border border-outline-variant min-h-[800px] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.4)] flex flex-col">
+            
+            <!-- Inner Page (Paper) -->
+            <div class="m-folder-padding bg-paper paper-texture border border-outline-variant flex-grow p-10 relative overflow-hidden">
+              
+              <!-- Verdict Stamp (FLAGGED / CAUTION / CLEARED) -->
+              <div class="absolute top-20 right-20 z-40 transform -rotate-6 animate-stamp opacity-0" id="verdict-stamp-container">
+                <div class="border-4 px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide" id="verdict-stamp-text">
+                  FLAGGED
+                </div>
+              </div>
+              
+              <!-- Header Content -->
+              <div class="flex justify-between border-b border-primary/20 pb-4 mb-8">
+                <div class="space-y-1">
+                  <p class="font-data-mono text-label-sm text-ink-variant flex items-center gap-2" id="case-id-display">CASE #------</p>
+                  <p class="font-data-mono text-label-sm text-on-surface-variant" id="case-timestamp-display">OPENED: -- // --</p>
+                  <!-- Threat category container -->
+                  <div id="threat-category-container" class="flex flex-wrap gap-1.5 mt-2"></div>
+                </div>
+                <div class="text-right">
+                  <p class="font-data-mono text-label-sm text-primary" id="case-priority-display">PRIORITY: ROUTINE</p>
+                  <p class="font-data-mono text-label-sm text-ink-variant" id="case-status-display">STATUS: PENDING REVIEW</p>
+                  <p class="font-data-mono text-[10px] text-on-surface-variant mt-1 font-bold" id="case-confidence-display">CONFIDENCE: HIGH</p>
+                </div>
+              </div>
+
+              <!-- Case Toolbar -->
+              <div class="flex flex-wrap gap-4 items-center justify-between border-b border-primary/20 pb-4 mb-6" id="case-toolbar">
+                <div class="flex items-center gap-2">
+                  <button id="watch-case-btn" type="button" class="flex items-center gap-1 font-data-mono text-xs border border-outline-variant px-3 py-1.5 bg-paper rounded hover:bg-[#e4d9be] hover:scale-105 active:scale-95 transition-all" title="Toggle Monitoring Watchlist">
+                    <span class="material-symbols-outlined text-[16px] text-on-surface-variant" id="watch-star-icon">star_border</span>
+                    <span id="watch-btn-text">WATCH DOMAIN</span>
+                  </button>
+
+                  <button id="share-report-btn" type="button" class="flex items-center gap-1 font-data-mono text-xs border border-outline-variant px-3 py-1.5 bg-paper rounded hover:bg-[#e4d9be] hover:scale-105 active:scale-95 transition-all" title="Copy Standalone Share Link">
+                    <span class="material-symbols-outlined text-[16px]">share</span>
+                    <span>SHARE REPORT</span>
+                  </button>
+
+                  <!-- Accuracy Feedback Button -->
+                  <button id="report-feedback-btn" type="button" class="flex items-center gap-1 font-data-mono text-xs border border-outline-variant px-3 py-1.5 bg-paper rounded hover:bg-[#e4d9be] hover:scale-105 active:scale-95 transition-all" title="Mark this report as inaccurate">
+                    <span class="material-symbols-outlined text-[16px]">feedback</span>
+                    <span id="feedback-btn-text">MARK INACCURATE</span>
+                  </button>
+                </div>
+                <div class="font-data-mono text-xs text-error font-bold hidden" id="visual-diff-alert">
+                  <!-- Visual Diff warning populated dynamically -->
+                </div>
+              </div>
+
+              <!-- Main Report Body -->
+              <div class="grid grid-cols-12 gap-8">
+                <!-- Left Column: EXHIBIT A -->
+                <div class="col-span-7 space-y-6">
+                  <!-- Compact inline redirects path -->
+                  <div id="redirect-inline-trail" class="bg-secondary-container/30 border border-primary/20 p-3 rounded font-data-mono text-[11px] text-ink break-all shadow-inner hidden">
+                    <!-- Inline breadcrumbs -->
+                  </div>
+
+                  <div class="relative">
+                    <span class="font-data-mono text-label-sm bg-primary text-on-primary px-2 py-0.5 absolute -top-4 left-4 z-20">EXHIBIT A</span>
+                    <div class="bg-paper p-4 border border-outline-variant shadow-md transform rotate-2 relative transition-all duration-300" id="exhibit-frame">
+                      <!-- Tape Corners -->
+                      <div class="tape-corner top-[-10px] left-[-10px] rotate-[-45deg]"></div>
+                      <div class="tape-corner top-[-10px] right-[-10px] rotate-[45deg]"></div>
+                      <div class="tape-corner bottom-[-10px] left-[-10px] rotate-[45deg]"></div>
+                      <div class="tape-corner bottom-[-10px] right-[-10px] rotate-[-45deg]"></div>
+                      
+                      <!-- Screenshot relative container for highlights -->
+                      <div class="aspect-video bg-background overflow-hidden border border-outline-variant flex items-center justify-center relative">
+                        <img id="screenshot-img" class="w-full h-full object-cover grayscale-[0.2] contrast-[1.05]" src="" alt="Page Snapshot"/>
+                        <div id="screenshot-placeholder" class="text-on-surface-variant font-data-mono text-label-sm hidden">NO SNAPSHOT AVAILABLE</div>
+                        
+                        <!-- Overlay highlighter box container -->
+                        <div id="screenshot-overlay-container" class="absolute inset-0 w-full h-full pointer-events-none z-30"></div>
+                      </div>
+                      
+                      <div class="mt-4 font-data-mono text-label-sm text-on-surface-variant text-center italic" id="screenshot-timestamp">
+                        FILE: CAPTURE_SCR_001.JPG
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- INVESTIGATOR NOTES -->
+                  <div class="bg-secondary-container folder-texture p-6 border border-outline-variant/30 shadow-sm relative">
+                    <div class="font-data-mono text-label-sm mb-4 border-b border-primary/20 pb-2">INVESTIGATOR'S NOTES</div>
+                    <p class="font-body-md text-body-lg text-on-surface-variant leading-relaxed italic" id="investigator-notes">
+                      Awaiting analysis data...
+                    </p>
+                  </div>
+
+
+                </div>
+
+                <!-- Right Column: EVIDENCE -->
+                <div class="col-span-5 space-y-8">
+                  <!-- Matched feeds banner -->
+                  <div id="threat-feeds-banner" class="bg-error text-on-primary px-4 py-2.5 font-data-mono text-xs rounded border border-outline-variant font-bold shadow-md hidden animate-pulse mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">gpp_maybe</span>
+                    <span id="threat-feeds-banner-text">MATCHED FEEDS</span>
+                  </div>
+
+                  <div>
+                    <h3 class="font-data-mono text-label-sm mb-4 text-primary underline">EVIDENCE LOG (RISK FACTORS)</h3>
+                    <div class="space-y-3" id="reasons-list">
+                      <!-- Dynamically rendered pinned evidence tags -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- BOTTOM SECTION: REDIRECT TRAIL -->
+              <div class="mt-12 pt-8 border-t border-primary/20" id="redirects-card">
+                <h3 class="font-data-mono text-label-sm mb-6 text-primary">REDIRECT TRAIL</h3>
+                <div class="relative flex flex-wrap items-center gap-4 py-2 trail-dot" id="redirects-list">
+                  <!-- Redirect steps rendered dynamically -->
+                </div>
+              </div>
+
+              <!-- Watermark -->
+              <div class="absolute bottom-4 right-4 opacity-5 pointer-events-none select-none">
+                <span class="font-display-lg text-[64px] tracking-widest">PROPERTY OF SENTINEL</span>
+              </div>
+            </div>
+          </div>
+          <!-- Folder Side Tab (Vertical) -->
+          <div class="absolute top-24 -right-12 bg-secondary-container folder-texture border border-outline-variant border-l-0 px-2 py-10 font-data-mono text-label-sm vertical-rl rotate-180 flex items-center shadow-md" id="folder-tab-id">
+            CASE_ID
+          </div>
+        </section>
+
+        <!-- Initial Placeholder State: Morning Briefing Dashboard -->
+        <section class="mt-12 space-y-gutter" id="scanner-placeholder">
+          <!-- Briefing Header -->
+          <div class="mb-8">
+            <p class="font-data-mono text-label-sm text-ink-variant mb-1" id="briefing-time-display">08:00 HRS // ENCRYPTED SESSION</p>
+            <h2 class="font-display-lg text-display-lg uppercase tracking-tight text-ink">Morning briefing.</h2>
+          </div>
+
+          <!-- Stat Strip -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Open Cases -->
+            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(0.4deg);">
+              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
+              <p class="font-data-mono text-label-sm text-ink-variant mb-4">OPEN CASES</p>
+              <p class="font-display-lg text-display-lg leading-none" id="stats-open-cases">0</p>
+            </div>
+            <!-- Flagged Today -->
+            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(-0.5deg);">
+              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
+              <p class="font-data-mono text-label-sm text-ink-variant mb-4">FLAGGED TODAY</p>
+              <p class="font-display-lg text-display-lg leading-none text-verdict-red" id="stats-flagged-today">0</p>
+            </div>
+            <!-- Avg. Score -->
+            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(0.3deg);">
+              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
+              <p class="font-data-mono text-label-sm text-ink-variant mb-4">AVG. VERDICT SCORE</p>
+              <p class="font-display-lg text-display-lg leading-none text-verdict-amber" id="stats-avg-score">0</p>
+            </div>
+            <!-- Active Agents -->
+            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(-0.2deg);">
+              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
+              <p class="font-data-mono text-label-sm text-ink-variant mb-4">ACTIVE AGENTS</p>
+              <p class="font-display-lg text-display-lg leading-none text-primary">08</p>
+            </div>
+          </div>
+
+          <!-- Left/Right Columns -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Left Column: Verdict Tally -->
+            <div class="lg:col-span-4 space-y-6">
+              <div class="bg-paper-container/60 folder-texture border border-outline-variant p-6 relative shadow-md">
+                <h3 class="font-data-mono text-label-sm mb-6 border-b border-outline-variant pb-2 text-ink">VERDICT TALLY // 24H</h3>
+                <div class="space-y-4">
+                  <!-- Malicious -->
+                  <div class="space-y-1">
+                    <div class="flex justify-between font-data-mono text-label-sm text-ink">
+                      <span>MALICIOUS (SCORE &lt; 50)</span>
+                      <span id="tally-malicious-pct">0%</span>
+                    </div>
+                    <div class="w-full bg-backgroundest h-3.5 border border-outline-variant">
+                      <div class="bg-verdict-red h-full" id="tally-malicious-bar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                  <!-- Suspicious -->
+                  <div class="space-y-1">
+                    <div class="flex justify-between font-data-mono text-label-sm text-ink">
+                      <span>SUSPICIOUS (SCORE 50-79)</span>
+                      <span id="tally-suspicious-pct">0%</span>
+                    </div>
+                    <div class="w-full bg-backgroundest h-3.5 border border-outline-variant">
+                      <div class="bg-verdict-amber h-full" id="tally-suspicious-bar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                  <!-- Benign -->
+                  <div class="space-y-1">
+                    <div class="flex justify-between font-data-mono text-label-sm text-ink">
+                      <span>BENIGN (SCORE &gt;= 80)</span>
+                      <span id="tally-benign-pct">0%</span>
+                    </div>
+                    <div class="w-full bg-backgroundest h-3.5 border border-outline-variant">
+                      <div class="bg-verdict-green h-full" id="tally-benign-bar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                </div>
+                <p class="mt-8 font-body-md italic text-ink-variant leading-relaxed text-sm" id="briefing-risk-summary">
+                  No scan history compiled yet. Initiate a scan to visualize risk distributions.
+                </p>
+              </div>
+              <div class="p-4 border border-dashed border-outline-variant opacity-60 text-center text-[10px] font-data-mono uppercase">
+                REDACTED SECTION // AUTHORIZATION REQUIRED
+              </div>
+            </div>
+
+            <!-- Right Column: Intake Log -->
+            <div class="lg:col-span-8 bg-paper ink-border p-6 shadow-md min-h-[400px]">
+              <div class="flex justify-between items-center mb-6">
+                <h3 class="font-data-mono text-label-sm text-primary">TODAY'S INTAKE LOG</h3>
+                <span class="font-data-mono text-label-sm opacity-60" id="briefing-log-ref">REF: LOG-2026-JUL-05</span>
+              </div>
+              <div class="ruled-line border-t border-outline-variant divide-y divide-outline-variant/30" id="intake-log-list">
+                <!-- Log items rendered dynamically -->
+              </div>
+              <div class="mt-8 flex justify-end">
+                <button id="view-logbook-btn" class="font-data-mono text-label-sm text-ink hover:opacity-60 transition-opacity flex items-center gap-1 border-b border-ink pb-0.5">
+                  VIEW FULL LOGBOOK <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- VIEW 2: EVIDENCE BIN (CASE ARCHIVE) -->
+      <div id="view-section-archive" class="space-y-gutter hidden">
+        <div class="mb-10 flex items-end justify-between">
+          <div>
+            <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">CASE ARCHIVE</h2>
+            <p class="font-body-md text-ink-variant italic">Historical log of all domains scanned and saved locally on this terminal.</p>
+          </div>
+          <div class="flex space-x-4 pb-2">
+            <button id="clear-archive-btn" class="font-data-mono text-label-sm text-error underline hover:text-error/80 transition-colors">
+              [CLEAR ARCHIVE]
+            </button>
+          </div>
+        </div>
+
+        <!-- Folder Structure Grid -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-12" id="archive-grid">
+          <!-- Dynamically populated past cases -->
+        </div>
+
+        <!-- Archive Empty State -->
+        <div id="archive-empty-state" class="text-center py-20 bg-paper-container-low border border-dashed border-outline-variant max-w-4xl mx-auto rounded hidden">
+          <span class="material-symbols-outlined text-[64px] text-on-surface-variant mb-4">archive</span>
+          <h3 class="font-display-lg text-primary mb-2">ARCHIVE IS EMPTY</h3>
+          <p class="font-body-md text-ink-variant max-w-md mx-auto">
+            Scanned cases will be saved here automatically for dynamic retrieval and review.
+          </p>
+        </div>
+      </div>
+
+      <!-- VIEW 3: REGISTRY RECORD -->
+      <div id="view-section-registry" class="space-y-gutter hidden">
+        <div class="mb-6">
+          <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">REGISTRY RECORD</h2>
+          <p class="font-body-md text-ink-variant italic" id="registry-record-desc">Public records registry lookup (WHOIS, DNS, Geolocation, SSL history).</p>
+        </div>
+
+        <!-- Official printed public-records lookup page container -->
+        <div class="bg-paper text-ink border border-outline-variant p-8 md:p-12 shadow-md relative min-h-[600px] font-data-mono text-sm leading-relaxed max-w-4xl mx-auto rounded">
+          <!-- Low opacity CERTIFIED RECORD watermark -->
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden opacity-[0.06]">
+            <span class="font-bold text-[84px] tracking-widest uppercase rotate-[-28deg] border-8 border-ink px-8 py-4 whitespace-nowrap">CERTIFIED RECORD</span>
+          </div>
+
+          <!-- Header structure -->
+          <div class="border-b-2 border-ink pb-4 mb-8">
+            <div class="flex justify-between items-start font-bold">
+              <span class="text-lg">DOMAIN REGISTRY LOOKUP</span>
+              <span class="text-xs">RECORD #<span id="registry-case-id">------</span></span>
+            </div>
+            <div class="text-[10px] text-on-surface-variant mt-1 uppercase font-bold">
+              System Audit // Security Intelligence Command // Sentinel AI
+            </div>
+          </div>
+
+          <!-- Pinned record entries -->
+          <div class="space-y-8 relative z-10" id="registry-record-content">
+            <!-- Populated dynamically via JS -->
+          </div>
+
+          <!-- Awaiting State -->
+          <div id="registry-empty-state" class="absolute inset-0 flex flex-col items-center justify-center bg-paper text-center p-8 z-30">
+            <span class="material-symbols-outlined text-[64px] text-on-surface-variant mb-4">description</span>
+            <h3 class="font-bold text-ink text-lg mb-2">AWAITING REGISTRY SWEEP</h3>
+            <p class="text-on-surface-variant max-w-md text-xs">
+              Perform a scan to query and visualize this target's public registrar records.
+            </p>
+          </div>
+
+          <!-- Footer caption attribution -->
+          <div class="border-t border-outline-variant mt-12 pt-4 flex justify-between items-center text-[10px] text-on-surface-variant font-bold">
+            <span>Lookup performed via RDAP, DNS-over-HTTPS, IP-API, and Certificate Transparency logs</span>
+            <span id="registry-fetched-at">fetchedAt: -- // --</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 4: CASE LOGS (TERMINAL CONSOLE) -->
+      <div id="view-section-logs" class="space-y-gutter hidden">
+        <div class="mb-6">
+          <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">CASE AUDIT LOGS</h2>
+          <p class="font-body-md text-ink-variant italic">Live terminal diagnostic output from the automated scan engine.</p>
+        </div>
+        
+        <div class="bg-primary text-[#38BDF8] p-6 rounded shadow-[8px_8px_0px_0px_rgba(0,0,0,0.3)] border border-outline-variant font-data-mono text-data-mono flex flex-col h-[500px]" id="log-terminal-container">
+          <div class="space-y-2 flex-grow overflow-y-auto" id="log-terminal">
+            <span class="text-on-surface-variant">[00:00:00] AWAITING CASE INITIATION...</span>
+          </div>
+          <div class="mt-4 pt-4 border-t border-outline-variant-container text-right text-[10px] text-on-surface-variant">
+            SENTINEL_DIAGNOSTIC_VER_1.0.0
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 5: SYSTEM SETTINGS -->
+      <div id="view-section-settings" class="space-y-gutter hidden">
+        <div class="mb-6">
+          <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">SYSTEM SETTINGS</h2>
+          <p class="font-body-md text-ink-variant italic">Configure diagnostic profiles, target timeouts, and visual theme preferences.</p>
+        </div>
+
+        <div class="bg-paper paper-texture border border-outline-variant p-folder-padding shadow-[8px_8px_0px_0px_rgba(0,0,0,0.4)] max-w-2xl space-y-6">
+
+
+          <!-- Puppeteer worker URL -->
+          <div class="flex flex-col gap-2 border-b border-primary/20 pb-4">
+            <label for="setting-worker-url" class="font-data-mono text-label-sm text-primary uppercase">Puppeteer Render Endpoint</label>
+            <p class="font-body-md text-ink-variant">Specify the URL coordinates for the sandboxed Puppeteer browser container.</p>
+            <input type="text" id="setting-worker-url" class="bg-paper-variant border border-outline-variant font-data-mono text-label-sm p-3 focus:ring-1 focus:ring-primary w-full" value="http://127.0.0.1:4000"/>
+          </div>
+
+          <!-- Default Scan Timeout slider -->
+          <div class="flex flex-col gap-2 border-b border-primary/20 pb-4">
+            <div class="flex justify-between items-center">
+              <label for="setting-timeout" class="font-data-mono text-label-sm text-primary uppercase">Navigation Timeout</label>
+              <span id="setting-timeout-val" class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2">10s</span>
+            </div>
+            <p class="font-body-md text-ink-variant">Set the threshold duration (in seconds) for following redirects and network idle settling.</p>
+            <input type="range" id="setting-timeout" min="5" max="30" step="1" value="10" class="w-full h-2 bg-background rounded-lg appearance-none cursor-pointer focus:outline-none accent-primary"/>
+          </div>
+
+          <!-- Custom User-Agent string -->
+          <div class="flex flex-col gap-2 pb-2">
+            <label for="setting-user-agent" class="font-data-mono text-label-sm text-primary uppercase">Custom User-Agent Profile</label>
+            <p class="font-body-md text-ink-variant">Spoof a specific browser identity header transmitted during the URL render sweep.</p>
+            <textarea id="setting-user-agent" rows="3" class="bg-paper-variant border border-outline-variant font-data-mono text-label-sm p-3 focus:ring-1 focus:ring-primary w-full" placeholder="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"></textarea>
+          </div>
+
+          <!-- Save/Reset action buttons -->
+          <div class="flex justify-end gap-4 pt-4 border-t border-primary/20">
+            <button id="settings-reset-btn" class="font-data-mono text-label-sm text-on-surface-variant underline hover:text-primary transition-colors">
+              [RESET DEFAULTS]
+            </button>
+            <button id="settings-save-btn" class="bg-primary text-background font-data-mono text-label-sm py-3 px-6 hover:bg-primary-container shadow-md active:translate-y-[1px] transition-all">
+              [SAVE CONFIGURATION]
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Decorative Corner Status (Dymo Label) -->
+  <div class="fixed bottom-6 right-6 z-50 bg-primary text-background font-data-mono text-[10px] px-3 py-1 uppercase tracking-tighter shadow-xl rotate-[-2deg]" id="dymo-label">
+    LOGGED IN: SECURE_9928-TX
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
