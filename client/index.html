@@ -9,7 +9,7 @@
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   
   <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;0,600;1,400&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
   
   <!-- Custom styles -->
   <link rel="stylesheet" href="styles.css">
@@ -90,94 +90,130 @@
 </head>
 <body class="bg-surface-container-high text-on-background min-h-screen font-body-md overflow-x-hidden">
   <div class="flex h-screen overflow-hidden">
-    <!-- Side Navigation Bar -->
-    <aside class="flex flex-col h-full py-folder-padding border-r border-outline-variant bg-secondary-container w-64 shadow-[4px_0px_0px_0px_rgba(0,0,0,0.4)] z-20 shrink-0">
-      <div class="px-6 mb-10">
-        <h1 class="font-display-lg text-headline-md text-ink leading-none tracking-wide">SENTINEL AI</h1>
-        <p class="font-data-mono text-label-sm uppercase mt-2 text-on-surface-variant">INVESTIGATOR</p>
-        <p class="font-data-mono text-label-sm opacity-60">ID: 9928-TX</p>
+    <!-- Side Navigation Bar — Dark theme -->
+    <aside class="sidebar-dark flex flex-col h-full z-20 shrink-0 w-64">
+      <!-- Logo / Identity -->
+      <div class="sidebar-logo px-6 py-8 border-b border-white/10">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="sidebar-icon-shield">
+            <span class="material-symbols-outlined text-[28px] text-red-400" style="font-variation-settings:'FILL' 1">security</span>
+          </div>
+          <div>
+            <h1 class="glitch-logo font-display-lg text-white text-[20px] leading-none tracking-[0.15em]" data-text="SENTINEL">SENTINEL</h1>
+            <p class="font-data-mono text-[9px] text-red-400 tracking-[0.2em] uppercase mt-0.5">AI THREAT TERMINAL</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-3">
+          <span class="status-dot-live"></span>
+          <span class="font-data-mono text-[10px] text-white/40 uppercase tracking-wider">SECURE SESSION ACTIVE</span>
+        </div>
       </div>
-      
-      <nav class="flex-1 space-y-1">
-        <button id="nav-dashboard" class="w-full flex items-center space-x-3 bg-background text-primary border-l-4 border-outline-variant px-4 py-3 font-bold font-data-mono text-label-sm uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]">
-          <span class="material-symbols-outlined">dashboard</span>
+
+      <!-- Navigation -->
+      <nav class="flex-1 py-4 space-y-0.5 px-2">
+        <button id="nav-dashboard" class="sidebar-nav-active w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-[18px]">dashboard</span>
           <span>DASHBOARD</span>
         </button>
-        <button id="nav-archive" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
-          <span class="material-symbols-outlined">folder_open</span>
+        <button id="nav-archive" class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-[18px]">folder_open</span>
           <span>EVIDENCE BIN</span>
         </button>
-        <button id="nav-registry" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
-          <span class="material-symbols-outlined">description</span>
+        <button id="nav-registry" class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-[18px]">description</span>
           <span>REGISTRY RECORD</span>
         </button>
-        <button id="nav-logs" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
-          <span class="material-symbols-outlined">assignment</span>
+        <button id="nav-logs" class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-[18px]">assignment</span>
           <span>CASE LOGS</span>
         </button>
-        <button id="nav-settings" class="w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent">
-          <span class="material-symbols-outlined">settings</span>
+        <button id="nav-settings" class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-[18px]">settings</span>
           <span>SYSTEM SETTINGS</span>
         </button>
       </nav>
-      
-      <div class="px-4 mt-auto">
-        <button id="new-case-btn" class="w-full bg-primary text-background font-data-mono text-label-sm py-3 flex items-center justify-center space-x-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] active:translate-y-[1px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)] transition-all">
-          <span class="material-symbols-outlined text-[18px]">add</span>
+
+      <!-- Footer -->
+      <div class="px-4 pb-6 pt-4 border-t border-white/10 space-y-4">
+        <div class="font-data-mono text-[9px] text-white/30 uppercase px-1 space-y-0.5">
+          <div>AGENT ID: <span class="text-white/50">9928-TX</span></div>
+          <div>CLEARANCE: <span class="text-red-400">LEVEL 5</span></div>
+        </div>
+        <button id="new-case-btn" class="w-full sidebar-new-case-btn font-data-mono text-[11px] py-3 flex items-center justify-center gap-2 uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-[16px]">add_circle</span>
           <span>NEW CASE FILE</span>
         </button>
       </div>
     </aside>
 
     <!-- Main Content Canvas -->
-    <main class="flex-1 overflow-y-auto p-margin-page relative">
-      <!-- Top header strip -->
-      <div class="flex justify-between items-center h-16 w-full border-b border-outline-variant mb-12">
-        <div class="flex space-x-8">
-          <span class="font-display-lg text-headline-md uppercase tracking-widest text-primary font-bold border-b-2 border-outline-variant" id="view-title">CASE REPORT</span>
+    <main class="flex-1 overflow-y-auto relative" style="background: #f2efed;">
+      <!-- Top header bar -->
+      <div class="main-header sticky top-0 z-10 flex justify-between items-center px-10 h-14 border-b border-black/10">
+        <div class="flex items-center gap-4">
+          <div class="header-accent-bar"></div>
+          <span class="font-display-lg text-[18px] uppercase tracking-[0.2em] text-[#09151e] font-bold" id="view-title">CASE REPORT</span>
         </div>
-        <div class="text-right font-data-mono text-[10px] text-on-surface-variant">
-          SECURE CONNECTION: TERMINAL_TX_9928
+        <div class="flex items-center gap-6">
+          <div class="font-data-mono text-[10px] text-[#74777b] flex items-center gap-2">
+            <span class="material-symbols-outlined text-[14px]">wifi_lock</span>
+            <span>TERMINAL_TX_9928</span>
+          </div>
+          <div class="header-clock font-data-mono text-[11px] text-[#09151e] font-bold" id="header-live-clock">--:--:--</div>
         </div>
       </div>
+      <div class="px-10 py-8">
 
       <!-- VIEW 1: DASHBOARD (SCANNER) -->
       <div id="view-section-dashboard" class="space-y-gutter">
-        <!-- Input section -->
-        <section class="relative">
-          <h1 class="font-display-lg text-display-lg text-primary mb-8">OPEN A CASE.</h1>
-          <div class="relative max-w-2xl">
-            <!-- Folder Tab Decoration -->
-            <div class="inline-flex">
-              <div class="bg-secondary-container folder-texture border-t border-l border-r border-outline-variant px-4 py-1 font-data-mono text-label-sm text-ink">
-                NEW CASE
+        <!-- Hero Scan Section -->
+        <section class="hero-scan-section relative">
+          <div class="flex items-baseline gap-4 mb-2">
+            <h1 class="hero-title font-display-lg uppercase">OPEN A CASE.</h1>
+            <span class="font-data-mono text-[11px] text-[#74777b] uppercase tracking-widest">URL THREAT ANALYSIS</span>
+          </div>
+          <p class="font-data-mono text-[11px] text-[#74777b] mb-6 uppercase tracking-wide">Submit any URL or domain to run a full multi-source threat investigation.</p>
+
+          <div class="relative max-w-3xl">
+            <!-- Input Box — redesigned -->
+            <div class="hero-input-box scan-input-wrapper relative overflow-hidden">
+              <div class="scan-line-anim"></div>
+              <!-- Mode icon + inputs -->
+              <div class="flex items-center">
+                <div class="hero-input-icon">
+                  <span class="material-symbols-outlined text-[22px]" id="input-mode-icon">travel_explore</span>
+                </div>
+                <input class="hero-url-input flex-grow bg-transparent border-none focus:ring-0 font-data-mono placeholder:text-[#999] py-5 pr-4 text-[15px]" id="url-input" placeholder="https://suspicious-domain.example.com" type="text"/>
+                <textarea class="hero-url-input flex-grow bg-transparent border-none focus:ring-0 font-data-mono placeholder:text-[#999] py-4 pr-4 text-[14px] hidden" id="batch-url-input" placeholder="ENTER MULTIPLE URLS (ONE PER LINE, MAX 20)..." rows="3"></textarea>
+              </div>
+
+              <!-- Action row -->
+              <div class="hero-input-actions flex items-center gap-2 px-4 pb-3">
+                <input type="file" id="qr-file-input" accept="image/*" class="hidden" />
+                <button id="qr-upload-btn" type="button" class="hero-secondary-btn flex items-center gap-1.5" title="Upload QR Code Image">
+                  <span class="material-symbols-outlined text-[15px]">qr_code_2</span>
+                  <span>QR SCAN</span>
+                </button>
+                <button id="batch-toggle-btn" type="button" class="hero-secondary-btn flex items-center gap-1.5" title="Toggle Batch Scan Mode">
+                  <span class="material-symbols-outlined text-[15px]">lists</span>
+                  <span id="batch-toggle-text">BATCH MODE</span>
+                </button>
+                <div class="flex-1"></div>
+                <button class="hero-scan-btn" id="scan-btn">
+                  <span class="material-symbols-outlined text-[18px]">radar</span>
+                  <span>INITIATE SCAN</span>
+                </button>
               </div>
             </div>
-            <!-- Input Box -->
-            <div class="bg-paper paper-texture border border-outline-variant p-2 flex flex-col md:flex-row md:items-center shadow-[4px_4px_0px_0px_rgba(9,21,30,0.1)] gap-2">
-              <div class="flex items-center flex-grow">
-                <span class="material-symbols-outlined px-4 text-on-surface-variant" id="input-mode-icon">search</span>
-                <input class="flex-grow bg-transparent border-none focus:ring-0 font-data-mono text-data-mono placeholder:text-on-surface-variant py-4" id="url-input" placeholder="ENTER DOMAIN OR URL TO SCAN..." type="text"/>
-                <textarea class="flex-grow bg-transparent border-none focus:ring-0 font-data-mono text-data-mono placeholder:text-on-surface-variant py-2 hidden" id="batch-url-input" placeholder="ENTER MULTIPLE URLS (ONE PER LINE, MAX 20)..." rows="3"></textarea>
-              </div>
-              
-              <div class="flex items-center gap-2 px-2 pb-2 md:pb-0">
-                <!-- QR Scanner Hidden File Input -->
-                <input type="file" id="qr-file-input" accept="image/*" class="hidden" />
-                <button id="qr-upload-btn" type="button" class="bg-secondary-container text-ink border border-outline-variant px-3 py-2.5 font-data-mono text-label-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)] flex items-center gap-1 hover:bg-secondary-fixed transition-all" title="Upload QR Code Image">
-                  <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
-                  <span>QR</span>
-                </button>
-                
-                <button id="batch-toggle-btn" type="button" class="bg-secondary-container text-ink border border-outline-variant px-3 py-2.5 font-data-mono text-label-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)] flex items-center gap-1 hover:bg-secondary-fixed transition-all" title="Toggle Batch Scan Mode">
-                  <span class="material-symbols-outlined text-[18px]">lists</span>
-                  <span id="batch-toggle-text">BATCH</span>
-                </button>
 
-                <button class="bg-primary text-on-primary px-8 py-3 font-data-mono text-label-sm hover:bg-primary/90 active:scale-95 transition-all" id="scan-btn">
-                  [SCAN]
-                </button>
-              </div>
+            <!-- Threat indicators row -->
+            <div class="flex items-center gap-6 mt-3 px-1">
+              <span class="font-data-mono text-[10px] text-[#74777b] uppercase">ACTIVE FEEDS:</span>
+              <span class="feed-badge feed-urlhaus">URLhaus</span>
+              <span class="feed-badge feed-phishtank">PhishTank</span>
+              <span class="feed-badge feed-openphish">OpenPhish</span>
+              <span class="feed-badge feed-rdap">RDAP</span>
+              <span class="feed-badge feed-crt">crt.sh</span>
             </div>
           </div>
         </section>
@@ -213,7 +249,7 @@
         <!-- Dynamic Manila Folder Report Section -->
         <section class="relative mt-12 hidden" id="reportView">
           <!-- Folder Container -->
-          <div class="bg-secondary-container folder-texture border border-outline-variant min-h-[800px] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.4)] flex flex-col">
+          <div class="folder-report bg-secondary-container folder-texture border border-outline-variant min-h-[800px] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.4)] flex flex-col">
             
             <!-- Inner Page (Paper) -->
             <div class="m-folder-padding bg-paper paper-texture border border-outline-variant flex-grow p-10 relative overflow-hidden">
@@ -243,6 +279,11 @@
               <!-- Case Toolbar -->
               <div class="flex flex-wrap gap-4 items-center justify-between border-b border-primary/20 pb-4 mb-6" id="case-toolbar">
                 <div class="flex items-center gap-2">
+                  <button id="view-case-registry-btn" type="button" class="flex items-center gap-1 font-data-mono text-xs border border-primary/30 px-3 py-1.5 bg-secondary-container text-ink rounded hover:bg-secondary-fixed hover:scale-105 active:scale-95 transition-all font-bold" title="Open WHOIS / RDAP Registry Record for this case">
+                    <span class="material-symbols-outlined text-[16px]">description</span>
+                    <span>REGISTRY RECORD</span>
+                  </button>
+
                   <button id="watch-case-btn" type="button" class="flex items-center gap-1 font-data-mono text-xs border border-outline-variant px-3 py-1.5 bg-paper rounded hover:bg-[#e4d9be] hover:scale-105 active:scale-95 transition-all" title="Toggle Monitoring Watchlist">
                     <span class="material-symbols-outlined text-[16px] text-on-surface-variant" id="watch-star-icon">star_border</span>
                     <span id="watch-btn-text">WATCH DOMAIN</span>
@@ -348,36 +389,48 @@
         <!-- Initial Placeholder State: Morning Briefing Dashboard -->
         <section class="mt-12 space-y-gutter" id="scanner-placeholder">
           <!-- Briefing Header -->
-          <div class="mb-8">
-            <p class="font-data-mono text-label-sm text-ink-variant mb-1" id="briefing-time-display">08:00 HRS // ENCRYPTED SESSION</p>
-            <h2 class="font-display-lg text-display-lg uppercase tracking-tight text-ink">Morning briefing.</h2>
+          <div class="briefing-header mb-8">
+            <div class="briefing-header-meta">
+              <span class="status-dot-live" style="background:#ba1a1a;"></span>
+              <p class="font-data-mono text-[10px] text-[#74777b] uppercase tracking-wider" id="briefing-time-display">08:00 HRS // ENCRYPTED SESSION</p>
+            </div>
+            <h2 class="font-display-lg text-[52px] uppercase tracking-tight text-[#09151e] leading-none">Morning Briefing.</h2>
+            <p class="font-data-mono text-[11px] text-[#74777b] mt-2 uppercase">Current threat intelligence summary for this terminal session.</p>
           </div>
 
           <!-- Stat Strip -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
             <!-- Open Cases -->
-            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(0.4deg);">
-              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
-              <p class="font-data-mono text-label-sm text-ink-variant mb-4">OPEN CASES</p>
-              <p class="font-display-lg text-display-lg leading-none" id="stats-open-cases">0</p>
+            <div class="kpi-card kpi-neutral stat-card">
+              <div class="kpi-top-bar kpi-bar-neutral"></div>
+              <div class="kpi-icon-wrap"><span class="material-symbols-outlined text-[20px]">folder_open</span></div>
+              <p class="kpi-label">OPEN CASES</p>
+              <p class="kpi-value" id="stats-open-cases">0</p>
+              <p class="kpi-sub">all time</p>
             </div>
             <!-- Flagged Today -->
-            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(-0.5deg);">
-              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
-              <p class="font-data-mono text-label-sm text-ink-variant mb-4">FLAGGED TODAY</p>
-              <p class="font-display-lg text-display-lg leading-none text-verdict-red" id="stats-flagged-today">0</p>
+            <div class="kpi-card kpi-danger stat-card">
+              <div class="kpi-top-bar kpi-bar-danger"></div>
+              <div class="kpi-icon-wrap kpi-icon-danger"><span class="material-symbols-outlined text-[20px]">gpp_bad</span></div>
+              <p class="kpi-label">FLAGGED TODAY</p>
+              <p class="kpi-value kpi-value-danger" id="stats-flagged-today">0</p>
+              <p class="kpi-sub">last 24 hours</p>
             </div>
             <!-- Avg. Score -->
-            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(0.3deg);">
-              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
-              <p class="font-data-mono text-label-sm text-ink-variant mb-4">AVG. VERDICT SCORE</p>
-              <p class="font-display-lg text-display-lg leading-none text-verdict-amber" id="stats-avg-score">0</p>
+            <div class="kpi-card kpi-amber stat-card">
+              <div class="kpi-top-bar kpi-bar-amber"></div>
+              <div class="kpi-icon-wrap kpi-icon-amber"><span class="material-symbols-outlined text-[20px]">analytics</span></div>
+              <p class="kpi-label">AVG. TRUST SCORE</p>
+              <p class="kpi-value kpi-value-amber" id="stats-avg-score">0</p>
+              <p class="kpi-sub">last 24 hours</p>
             </div>
             <!-- Active Agents -->
-            <div class="bg-paper ink-border p-5 relative shadow-sm" style="transform: rotate(-0.2deg);">
-              <div class="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 bg-outline rounded-full"></div>
-              <p class="font-data-mono text-label-sm text-ink-variant mb-4">ACTIVE AGENTS</p>
-              <p class="font-display-lg text-display-lg leading-none text-primary">08</p>
+            <div class="kpi-card kpi-green stat-card">
+              <div class="kpi-top-bar kpi-bar-green"></div>
+              <div class="kpi-icon-wrap kpi-icon-green"><span class="material-symbols-outlined text-[20px]">robot_2</span></div>
+              <p class="kpi-label">ACTIVE AGENTS</p>
+              <p class="kpi-value kpi-value-green">08</p>
+              <p class="kpi-sub">threat intel feeds</p>
             </div>
           </div>
 
@@ -385,62 +438,81 @@
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <!-- Left Column: Verdict Tally -->
             <div class="lg:col-span-4 space-y-6">
-              <div class="bg-paper-container/60 folder-texture border border-outline-variant p-6 relative shadow-md">
-                <h3 class="font-data-mono text-label-sm mb-6 border-b border-outline-variant pb-2 text-ink">VERDICT TALLY // 24H</h3>
-                <div class="space-y-4">
+              <div class="tally-card">
+                <div class="tally-card-header">
+                  <span class="material-symbols-outlined text-[16px] text-[#6a5e38]">bar_chart_4_bars</span>
+                  <h3>VERDICT TALLY</h3>
+                  <span class="tally-badge">24H</span>
+                </div>
+                <div class="tally-bars-list">
                   <!-- Malicious -->
-                  <div class="space-y-1">
-                    <div class="flex justify-between font-data-mono text-label-sm text-ink">
-                      <span>MALICIOUS (SCORE &lt; 50)</span>
-                      <span id="tally-malicious-pct">0%</span>
+                  <div class="tally-row">
+                    <div class="tally-row-label">
+                      <span class="tally-dot tally-dot-red"></span>
+                      <span>MALICIOUS</span>
+                      <span class="tally-score-hint">&lt;50</span>
                     </div>
-                    <div class="w-full bg-backgroundest h-3.5 border border-outline-variant">
-                      <div class="bg-verdict-red h-full" id="tally-malicious-bar" style="width: 0%"></div>
+                    <div class="tally-pct" id="tally-malicious-pct">0%</div>
+                    <div class="tally-bar-track">
+                      <div class="tally-bar-fill tally-fill-red" id="tally-malicious-bar" style="width: 0%"></div>
                     </div>
                   </div>
                   <!-- Suspicious -->
-                  <div class="space-y-1">
-                    <div class="flex justify-between font-data-mono text-label-sm text-ink">
-                      <span>SUSPICIOUS (SCORE 50-79)</span>
-                      <span id="tally-suspicious-pct">0%</span>
+                  <div class="tally-row">
+                    <div class="tally-row-label">
+                      <span class="tally-dot tally-dot-amber"></span>
+                      <span>SUSPICIOUS</span>
+                      <span class="tally-score-hint">50–79</span>
                     </div>
-                    <div class="w-full bg-backgroundest h-3.5 border border-outline-variant">
-                      <div class="bg-verdict-amber h-full" id="tally-suspicious-bar" style="width: 0%"></div>
+                    <div class="tally-pct" id="tally-suspicious-pct">0%</div>
+                    <div class="tally-bar-track">
+                      <div class="tally-bar-fill tally-fill-amber" id="tally-suspicious-bar" style="width: 0%"></div>
                     </div>
                   </div>
                   <!-- Benign -->
-                  <div class="space-y-1">
-                    <div class="flex justify-between font-data-mono text-label-sm text-ink">
-                      <span>BENIGN (SCORE &gt;= 80)</span>
-                      <span id="tally-benign-pct">0%</span>
+                  <div class="tally-row">
+                    <div class="tally-row-label">
+                      <span class="tally-dot tally-dot-green"></span>
+                      <span>BENIGN</span>
+                      <span class="tally-score-hint">&ge;80</span>
                     </div>
-                    <div class="w-full bg-backgroundest h-3.5 border border-outline-variant">
-                      <div class="bg-verdict-green h-full" id="tally-benign-bar" style="width: 0%"></div>
+                    <div class="tally-pct" id="tally-benign-pct">0%</div>
+                    <div class="tally-bar-track">
+                      <div class="tally-bar-fill tally-fill-green" id="tally-benign-bar" style="width: 0%"></div>
                     </div>
                   </div>
                 </div>
-                <p class="mt-8 font-body-md italic text-ink-variant leading-relaxed text-sm" id="briefing-risk-summary">
-                  No scan history compiled yet. Initiate a scan to visualize risk distributions.
+                <p class="tally-summary" id="briefing-risk-summary">
+                  No scan history yet. Initiate a scan to populate risk distribution.
                 </p>
               </div>
-              <div class="p-4 border border-dashed border-outline-variant opacity-60 text-center text-[10px] font-data-mono uppercase">
+              <div class="redacted-box p-4 border border-dashed border-outline-variant opacity-60 text-center text-[10px] font-data-mono uppercase">
                 REDACTED SECTION // AUTHORIZATION REQUIRED
               </div>
             </div>
 
             <!-- Right Column: Intake Log -->
-            <div class="lg:col-span-8 bg-paper ink-border p-6 shadow-md min-h-[400px]">
-              <div class="flex justify-between items-center mb-6">
-                <h3 class="font-data-mono text-label-sm text-primary">TODAY'S INTAKE LOG</h3>
-                <span class="font-data-mono text-label-sm opacity-60" id="briefing-log-ref">REF: LOG-2026-JUL-05</span>
-              </div>
-              <div class="ruled-line border-t border-outline-variant divide-y divide-outline-variant/30" id="intake-log-list">
-                <!-- Log items rendered dynamically -->
-              </div>
-              <div class="mt-8 flex justify-end">
-                <button id="view-logbook-btn" class="font-data-mono text-label-sm text-ink hover:opacity-60 transition-opacity flex items-center gap-1 border-b border-ink pb-0.5">
-                  VIEW FULL LOGBOOK <span class="material-symbols-outlined text-sm">arrow_forward</span>
-                </button>
+            <div class="lg:col-span-8">
+              <div class="intake-log-card">
+                <div class="intake-log-header">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px] text-[#09151e]">receipt_long</span>
+                    <h3 class="font-data-mono text-[12px] font-bold text-[#09151e] uppercase tracking-wider">TODAY'S INTAKE LOG</h3>
+                  </div>
+                  <span class="font-data-mono text-[10px] text-[#74777b] uppercase" id="briefing-log-ref">REF: LOG-2026-JUL-05</span>
+                </div>
+                <div class="divide-y divide-[#c4c7cb]/40" id="intake-log-list">
+                  <!-- Log items rendered dynamically -->
+                  <div class="intake-empty-state">
+                    <span class="material-symbols-outlined text-[36px] mb-2 text-[#c4c7cb]">inbox</span>
+                    <p>No scans today. Submit a URL above to open your first case.</p>
+                  </div>
+                </div>
+                <div class="intake-log-footer">
+                  <button id="view-logbook-btn" class="intake-view-all-btn">
+                    VIEW FULL ARCHIVE <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -478,13 +550,30 @@
 
       <!-- VIEW 3: REGISTRY RECORD -->
       <div id="view-section-registry" class="space-y-gutter hidden">
-        <div class="mb-6">
-          <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">REGISTRY RECORD</h2>
-          <p class="font-body-md text-ink-variant italic" id="registry-record-desc">Public records registry lookup (WHOIS, DNS, Geolocation, SSL history).</p>
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">REGISTRY RECORD</h2>
+            <p class="font-body-md text-ink-variant italic" id="registry-record-desc">Public records registry lookup (WHOIS, DNS, Geolocation, SSL history).</p>
+          </div>
+          <!-- Case Selector & Report Shortcut -->
+          <div class="flex items-center gap-2.5 bg-paper border border-outline-variant p-2 rounded shadow-sm">
+            <span class="font-data-mono text-xs text-ink-variant font-bold">ACTIVE CASE:</span>
+            <select id="registry-case-select" class="font-data-mono text-xs bg-paper-variant border border-outline-variant px-3 py-1.5 rounded focus:ring-1 focus:ring-primary text-primary font-bold">
+              <!-- Populated dynamically via JS -->
+            </select>
+            <button id="registry-refresh-btn" class="font-data-mono text-xs bg-secondary-container text-ink border border-outline-variant px-3 py-1.5 rounded hover:bg-secondary-fixed transition-all flex items-center gap-1 font-bold shadow-sm" title="Re-fetch live WHOIS, RDAP, DNS, & SSL certificates">
+              <span class="material-symbols-outlined text-[14px]">refresh</span>
+              <span>RE-SWEEP LIVE</span>
+            </button>
+            <button id="registry-to-report-btn" class="font-data-mono text-xs bg-primary text-white px-3 py-1.5 rounded hover:bg-primary/90 transition-all flex items-center gap-1 font-bold shadow-sm" title="Jump to full Case Report for this target">
+              <span>FULL REPORT</span>
+              <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </button>
+          </div>
         </div>
 
         <!-- Official printed public-records lookup page container -->
-        <div class="bg-paper text-ink border border-outline-variant p-8 md:p-12 shadow-md relative min-h-[600px] font-data-mono text-sm leading-relaxed max-w-4xl mx-auto rounded">
+        <div class="bg-paper text-ink border border-outline-variant p-6 md:p-10 shadow-md relative min-h-[600px] font-data-mono text-sm leading-relaxed max-w-4xl w-full mx-auto rounded overflow-hidden">
           <!-- Low opacity CERTIFIED RECORD watermark -->
           <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden opacity-[0.06]">
             <span class="font-bold text-[84px] tracking-widest uppercase rotate-[-28deg] border-8 border-ink px-8 py-4 whitespace-nowrap">CERTIFIED RECORD</span>
@@ -516,7 +605,7 @@
           </div>
 
           <!-- Footer caption attribution -->
-          <div class="border-t border-outline-variant mt-12 pt-4 flex justify-between items-center text-[10px] text-on-surface-variant font-bold">
+          <div class="border-t border-outline-variant mt-12 pt-4 flex flex-wrap gap-2 justify-between items-center text-[10px] text-on-surface-variant font-bold">
             <span>Lookup performed via RDAP, DNS-over-HTTPS, IP-API, and Certificate Transparency logs</span>
             <span id="registry-fetched-at">fetchedAt: -- // --</span>
           </div>
@@ -530,11 +619,13 @@
           <p class="font-body-md text-ink-variant italic">Live terminal diagnostic output from the automated scan engine.</p>
         </div>
         
-        <div class="bg-primary text-[#38BDF8] p-6 rounded shadow-[8px_8px_0px_0px_rgba(0,0,0,0.3)] border border-outline-variant font-data-mono text-data-mono flex flex-col h-[500px]" id="log-terminal-container">
-          <div class="space-y-2 flex-grow overflow-y-auto" id="log-terminal">
-            <span class="text-on-surface-variant">[00:00:00] AWAITING CASE INITIATION...</span>
+        <div class="bg-primary text-[#38BDF8] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.3)] border border-outline-variant font-data-mono text-data-mono flex flex-col h-[500px] relative overflow-hidden" id="log-terminal-container">
+          <!-- Rolling bright scanline -->
+          <div class="terminal-rolling-scan" aria-hidden="true"></div>
+          <div class="space-y-2 flex-grow overflow-y-auto relative z-20" id="log-terminal">
+            <span class="text-on-surface-variant terminal-cursor">[00:00:00] AWAITING CASE INITIATION...</span>
           </div>
-          <div class="mt-4 pt-4 border-t border-outline-variant-container text-right text-[10px] text-on-surface-variant">
+          <div class="mt-4 pt-4 border-t border-outline-variant-container text-right text-[10px] text-on-surface-variant relative z-20">
             SENTINEL_DIAGNOSTIC_VER_1.0.0
           </div>
         </div>
@@ -585,14 +676,36 @@
           </div>
         </div>
       </div>
+    </div>
     </main>
   </div>
 
-  <!-- Decorative Corner Status (Dymo Label) -->
-  <div class="fixed bottom-6 right-6 z-50 bg-primary text-background font-data-mono text-[10px] px-3 py-1 uppercase tracking-tighter shadow-xl rotate-[-2deg]" id="dymo-label">
-    LOGGED IN: SECURE_9928-TX
+  <!-- Decorative Corner Status -->
+  <div class="fixed bottom-5 right-5 z-50" id="dymo-label">
+    <div class="flex items-center gap-2 bg-[#09151e] text-white font-data-mono text-[10px] px-3 py-2 shadow-xl uppercase tracking-widest" style="transform: rotate(-1.5deg);">
+      <span class="status-dot-live" style="width:5px;height:5px;"></span>
+      SECURE_9928-TX
+    </div>
   </div>
 
+  <script>
+    // Live clock
+    function updateClock() {
+      const el = document.getElementById('header-live-clock');
+      if (!el) return;
+      const now = new Date();
+      el.textContent = now.toLocaleTimeString('en-US', { hour12: false });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // Briefing time display
+    const bte = document.getElementById('briefing-time-display');
+    if (bte) {
+      const now = new Date();
+      bte.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' HRS // ENCRYPTED SESSION';
+    }
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

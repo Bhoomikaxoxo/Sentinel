@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const tls = require('tls');
 const reputationService = require('./reputationService');
 
 const CACHE_DIR = path.join(__dirname, '../db/cache');
@@ -8,82 +9,127 @@ if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
-// Singleton throttle controller to enforce the ~45 req/min rate limit (1.5s delay)
-let lastIpLookupTime = 0;
-async function throttleIpLookup() {
-  const now = Date.now();
-  const elapsed = now - lastIpLookupTime;
-  const delay = 1500 - elapsed;
-  if (delay > 0) {
-    await new Promise(resolve => setTimeout(resolve, delay));
-  }
-  lastIpLookupTime = Date.now();
-}
+// Helper: Perform direct TLS handshake to extract active live SSL certificate
+function getLiveSslCertificate(hostname) {
+  return new Promise((resolve) => {
+    let cleanHost = (hostname || '').toLowerCase().trim();
+    if (cleanHost.startsWith('https://')) cleanHost = cleanHost.slice(8);
+    if (cleanHost.startsWith('http://')) cleanHost = cleanHost.slice(7);
+    cleanHost = cleanHost.split('/')[0].split(':')[0];
 
-async function getIpInfo(hostname) {
-  try {
-    // Resolve hostname to IP first using Cloudflare DNS A record helper
-    const ips = await reputationService.getDnsRecords(hostname, 'A');
-    if (!ips || ips.length === 0) return null;
-    const ip = ips[0];
+    if (!cleanHost) return resolve(null);
 
-    // Enforce API throttling
-    await throttleIpLookup();
+    const socket = tls.connect({
+      host: cleanHost,
+      port: 443,
+      servername: cleanHost,
+      rejectUnauthorized: false,
+      timeout: 4000
+    }, () => {
+      try {
+        const cert = socket.getPeerCertificate(true);
+        socket.end();
+        if (!cert || !Object.keys(cert).length) return resolve(null);
 
-    // Query IP-API.com free tier via HTTP (HTTP only for free tier)
-    const response = await axios.get(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp,org,as`, {
-      timeout: 5000
-    });
-    
-    const data = response.data;
-    if (data.status !== 'success') return null;
+        let issuerStr = 'Unknown Certificate Authority';
+        if (cert.issuer) {
+          const org = cert.issuer.O;
+          const cn = cert.issuer.CN;
+          if (org && cn && org !== cn) issuerStr = `${org} (${cn})`;
+          else if (org) issuerStr = org;
+          else if (cn) issuerStr = cn;
+        }
 
-    return {
-      ip,
-      country: data.country || 'Unknown',
-      region: data.regionName || 'Unknown',
-      city: data.city || 'Unknown',
-      isp: data.isp || 'Unknown',
-      org: data.org || 'Unknown',
-      asn: data.as || 'Unknown'
-    };
-  } catch (err) {
-    console.error(`IP lookup error for ${hostname}:`, err.message);
-    return null;
-  }
-}
-
-async function getCertHistory(hostname) {
-  try {
-    const response = await axios.get(`https://crt.sh/?q=${encodeURIComponent(hostname)}&output=json`, {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        resolve({
+          issuer: issuerStr,
+          issuedAt: cert.valid_from ? new Date(cert.valid_from).toISOString() : null,
+          notBefore: cert.valid_from ? new Date(cert.valid_from).toISOString() : null,
+          notAfter: cert.valid_to ? new Date(cert.valid_to).toISOString() : null,
+          totalCertsFound: 1
+        });
+      } catch (e) {
+        socket.end();
+        resolve(null);
       }
     });
 
-    const entries = response.data;
-    if (!Array.isArray(entries) || entries.length === 0) return null;
-
-    // Sort to retrieve the most recent certificate entry
-    const sorted = entries.sort((a, b) => {
-      const dateA = new Date(a.entry_timestamp || a.not_before);
-      const dateB = new Date(b.entry_timestamp || b.not_before);
-      return dateB - dateA;
+    socket.on('error', () => {
+      socket.destroy();
+      resolve(null);
     });
 
-    const mostRecent = sorted[0];
-    return {
-      issuer: mostRecent.issuer_name || 'Unknown',
-      issuedAt: mostRecent.entry_timestamp || mostRecent.not_before || null,
-      notBefore: mostRecent.not_before || null,
-      notAfter: mostRecent.not_after || null,
-      totalCertsFound: entries.length
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(null);
+    });
+  });
+}
+
+function parseCertIssuer(issuerStr) {
+  if (!issuerStr) return 'Unknown Certificate Authority';
+  const orgMatch = issuerStr.match(/O=([^,]+)/);
+  const cnMatch = issuerStr.match(/CN=([^,]+)/);
+  const org = orgMatch ? orgMatch[1].trim() : null;
+  const cn = cnMatch ? cnMatch[1].trim() : null;
+
+  if (org && cn && org !== cn) return `${org} (${cn})`;
+  if (org) return org;
+  if (cn) return cn;
+  return issuerStr;
+}
+
+async function getCertHistory(hostname) {
+  // 1. Perform live TLS handshake directly to target domain on port 443
+  const liveCert = await getLiveSslCertificate(hostname);
+
+  // 2. Query crt.sh Certificate Transparency logs in parallel for certificate history
+  let ctCert = null;
+  try {
+    const fetchCerts = async (domain) => {
+      const response = await axios.get(`https://crt.sh/?q=${encodeURIComponent(domain)}&output=json`, {
+        timeout: 5000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+      return response.data;
     };
-  } catch (err) {
-    console.error(`Cert history error for ${hostname}:`, err.message);
-    return null;
+
+    let entries = await fetchCerts(hostname).catch(() => []);
+    if (!Array.isArray(entries) || entries.length === 0) {
+      const apex = reputationService.getApexDomain(hostname);
+      if (apex && apex !== hostname) {
+        entries = await fetchCerts(apex).catch(() => []);
+      }
+    }
+
+    if (Array.isArray(entries) && entries.length > 0) {
+      const sorted = entries.sort((a, b) => {
+        const dateA = new Date(a.entry_timestamp || a.not_before);
+        const dateB = new Date(b.entry_timestamp || b.not_before);
+        return dateB - dateA;
+      });
+      const mostRecent = sorted[0];
+      ctCert = {
+        issuer: parseCertIssuer(mostRecent.issuer_name),
+        issuedAt: mostRecent.entry_timestamp || mostRecent.not_before || null,
+        notBefore: mostRecent.not_before || null,
+        notAfter: mostRecent.not_after || null,
+        totalCertsFound: entries.length
+      };
+    }
+  } catch (err) {}
+
+  // Merge results: prefer live active SSL certificate with ctCert count
+  if (liveCert) {
+    if (ctCert && ctCert.totalCertsFound) {
+      liveCert.totalCertsFound = ctCert.totalCertsFound;
+    }
+    return liveCert;
   }
+
+  // Fallback to CT logs certificate if TLS handshake failed
+  return ctCert || null;
 }
 
 function getCachedRecord(hostname) {

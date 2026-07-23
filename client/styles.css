@@ -1,8 +1,14 @@
+/* =========================================================
+   SENTINEL AI — Enhanced Stylesheet v2
+   ========================================================= */
+
+/* ── Icon baseline ──────────────────────────────────────── */
 .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     vertical-align: middle;
 }
 
+/* ── Textures ────────────────────────────────────────────── */
 .paper-texture {
     background-color: #ffffff;
     background-image: url("https://www.transparenttextures.com/patterns/felt.png");
@@ -18,55 +24,47 @@
     -webkit-mask-image: url("https://www.transparenttextures.com/patterns/stardust.png");
 }
 
+/* ── Stamp animation ─────────────────────────────────────── */
 @keyframes stamp-thud {
-    0% { transform: scale(3) rotate(-15deg); opacity: 0; }
-    50% { transform: scale(1) rotate(-6deg); opacity: 1; }
-    60% { transform: scale(1.1) rotate(-6deg); }
+    0%   { transform: scale(3) rotate(-15deg); opacity: 0; }
+    50%  { transform: scale(1) rotate(-6deg); opacity: 1; }
+    60%  { transform: scale(1.1) rotate(-6deg); }
     100% { transform: scale(1) rotate(-6deg); }
 }
-
 .animate-stamp {
     animation: stamp-thud 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
+/* ── Tape / Pin decorations ──────────────────────────────── */
 .tape-corner {
     background: rgba(255, 255, 255, 0.55);
     backdrop-filter: blur(1px);
-    width: 40px;
-    height: 20px;
-    position: absolute;
-    z-index: 10;
+    width: 40px; height: 20px;
+    position: absolute; z-index: 10;
 }
-
-.pin-tag {
-    position: relative;
-    border-left: 3px solid #ba1a1a;
-}
-
+.pin-tag { position: relative; border-left: 3px solid #ba1a1a; }
 .pin-hole::before {
     content: '';
     position: absolute;
-    top: 4px;
-    left: 50%;
+    top: 4px; left: 50%;
     transform: translateX(-50%);
-    width: 4px;
-    height: 4px;
+    width: 4px; height: 4px;
     background: #ffffff;
     border-radius: 50%;
 }
 
+/* ── Redirect trail ──────────────────────────────────────── */
 .trail-dot::after {
     content: '';
     position: absolute;
-    left: 0;
-    right: 0;
-    top: 50%;
+    left: 0; right: 0; top: 50%;
     height: 1px;
     background-image: linear-gradient(to right, #c4c7cb 50%, transparent 50%);
     background-size: 8px 1px;
     z-index: -1;
 }
 
+/* ── Verdict stamp ───────────────────────────────────────── */
 .verdict-stamp {
     font-family: 'Barlow Condensed', sans-serif;
     text-transform: uppercase;
@@ -75,59 +73,1182 @@
     animation: stampEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     opacity: 0;
 }
-
 @keyframes stampEffect {
-    0% { transform: scale(1.8) rotate(20deg); opacity: 0; }
-    100% { transform: scale(1) rotate(-12deg); opacity: 0.85; }
+    0%   { transform: scale(1.8) rotate(20deg);  opacity: 0; }
+    100% { transform: scale(1)   rotate(-12deg); opacity: 0.85; }
 }
 
-.node-line {
-    stroke: #ba1a1a;
-    stroke-dasharray: 4 4;
-    stroke-width: 2.5;
-    fill: none;
-}
+/* ── SVG nodes ───────────────────────────────────────────── */
+.node-line { stroke: #ba1a1a; stroke-dasharray: 4 4; stroke-width: 2.5; fill: none; }
+.hand-arrow { fill: #09151e; }
 
-.hand-arrow {
-    fill: #09151e;
-}
-
+/* ── Paper stack ─────────────────────────────────────────── */
 .paper-stack {
-    box-shadow: 
+    box-shadow:
         2px 2px 0px 0px rgba(0,0,0,0.08),
         4px 4px 0px 0px #ffffff,
         6px 6px 0px 0px rgba(0,0,0,0.05);
 }
 
+/* ── Tape strip ──────────────────────────────────────────── */
 .tape-effect {
-    background: rgba(255, 255, 255, 0.6);
+    background: rgba(255,255,255,0.6);
     backdrop-filter: blur(1px);
-    width: 60px;
-    height: 20px;
+    width: 60px; height: 20px;
     transform: rotate(-3deg);
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    margin-left: -30px;
+    position: absolute; top: -10px; left: 50%; margin-left: -30px;
     box-shadow: inset 0 0 4px rgba(0,0,0,0.05);
 }
 
-.vertical-rl {
-    writing-mode: vertical-rl;
-}
+/* ── Typography helpers ──────────────────────────────────── */
+.vertical-rl { writing-mode: vertical-rl; }
+.folder-tab { clip-path: polygon(0% 0%, 85% 0%, 100% 100%, 0% 100%); }
 
-.folder-tab {
-    clip-path: polygon(0% 0%, 85% 0%, 100% 100%, 0% 100%);
-}
-
+/* ── Background textures ─────────────────────────────────── */
 .corkboard {
     background-color: #eae7e8;
-    background-image: 
-        radial-gradient(circle at 2px 2px, #c4c7cb 1px, transparent 0);
+    background-image: radial-gradient(circle at 2px 2px, #c4c7cb 1px, transparent 0);
     background-size: 4px 4px;
 }
-
 .ruled-line {
     background-image: linear-gradient(#c4c7cb 1px, transparent 1px);
     background-size: 100% 2.5rem;
 }
+
+/* ============================================================
+   ✨ DARK SIDEBAR
+   ============================================================ */
+
+.sidebar-dark {
+    background: linear-gradient(180deg, #0d1f2d 0%, #09151e 60%, #0a1520 100%);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+}
+
+.sidebar-logo { }
+
+.sidebar-icon-shield {
+    width: 42px; height: 42px;
+    background: rgba(186,26,26,0.12);
+    border: 1px solid rgba(186,26,26,0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* Sidebar nav buttons */
+.sidebar-nav-active {
+    background: rgba(255,255,255,0.08);
+    color: #ffffff;
+    border-left: 3px solid #ef4444;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+.sidebar-nav-active .material-symbols-outlined { color: #ef4444; }
+
+.sidebar-nav-inactive {
+    color: rgba(255,255,255,0.45);
+    border-left: 3px solid transparent;
+}
+.sidebar-nav-inactive:hover {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.75);
+    border-left-color: rgba(255,255,255,0.2);
+}
+
+/* New case button */
+.sidebar-new-case-btn {
+    background: linear-gradient(135deg, #ba1a1a 0%, #8b1010 100%);
+    color: #ffffff;
+    border: 1px solid rgba(186,26,26,0.5);
+    box-shadow: 0 4px 12px rgba(186,26,26,0.3), 0 0 0 1px rgba(186,26,26,0.2);
+    transition: all 0.2s ease;
+}
+.sidebar-new-case-btn:hover {
+    background: linear-gradient(135deg, #d42020 0%, #a01515 100%);
+    box-shadow: 0 6px 18px rgba(186,26,26,0.4), 0 0 0 1px rgba(186,26,26,0.3);
+    transform: translateY(-1px);
+}
+.sidebar-new-case-btn:active { transform: translateY(1px); }
+
+/* Status dot */
+@keyframes status-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(56, 106, 32, 0.7); }
+    50%       { opacity: 0.8; box-shadow: 0 0 0 6px rgba(56, 106, 32, 0); }
+}
+.status-dot-live {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    display: inline-block;
+    animation: status-pulse 2.2s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+/* ============================================================
+   ✨ TOP HEADER BAR
+   ============================================================ */
+
+.main-header {
+    background: rgba(242, 239, 237, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.header-accent-bar {
+    width: 4px;
+    height: 22px;
+    background: linear-gradient(180deg, #ba1a1a 0%, #6a5e38 100%);
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.header-clock {
+    background: #09151e;
+    color: #4ade80;
+    padding: 3px 10px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    font-family: 'IBM Plex Mono', monospace;
+    border-radius: 2px;
+}
+
+/* View title shimmer underline */
+#view-title {
+    position: relative;
+}
+#view-title::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0;
+    width: 100%; height: 2px;
+    background: linear-gradient(90deg, #ba1a1a 0%, #6a5e38 50%, #09151e 100%);
+    background-size: 200% 100%;
+    animation: shimmer 4s linear infinite;
+}
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================
+   ✨ HERO SCAN INPUT
+   ============================================================ */
+
+.hero-scan-section {
+    padding-bottom: 8px;
+}
+
+.hero-title {
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: 0.05em;
+    color: #09151e;
+    font-weight: 800;
+}
+
+.hero-input-box {
+    background: #ffffff;
+    border: 1.5px solid #c4c7cb;
+    box-shadow:
+        0 1px 3px rgba(0,0,0,0.06),
+        0 4px 16px rgba(0,0,0,0.08),
+        4px 4px 0px rgba(9,21,30,0.08);
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.hero-input-box:focus-within {
+    border-color: #09151e;
+    box-shadow:
+        0 1px 3px rgba(0,0,0,0.08),
+        0 6px 24px rgba(0,0,0,0.12),
+        4px 4px 0px rgba(9,21,30,0.15);
+}
+
+.hero-input-icon {
+    width: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #74777b;
+    border-right: 1px solid #e4e2e2;
+    height: 56px;
+    flex-shrink: 0;
+}
+.hero-input-box:focus-within .hero-input-icon {
+    color: #09151e;
+}
+
+.hero-url-input {
+    color: #09151e;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    padding-left: 16px;
+}
+.hero-url-input:focus { outline: none; }
+
+.hero-input-actions {
+    border-top: 1px solid #f0edee;
+    background: #fafafa;
+    padding-top: 8px;
+}
+
+.hero-secondary-btn {
+    background: #f5f3f3;
+    border: 1px solid #c4c7cb;
+    color: #1b1c1c;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.hero-secondary-btn:hover {
+    background: #e4e2e2;
+    border-color: #74777b;
+    transform: translateY(-1px);
+}
+
+.hero-scan-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #09151e 0%, #1a2f3d 100%);
+    color: #ffffff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(9,21,30,0.25), 4px 4px 0px rgba(9,21,30,0.12);
+    transition: all 0.15s ease;
+}
+.hero-scan-btn:hover {
+    background: linear-gradient(135deg, #1a2f3d 0%, #243d4f 100%);
+    box-shadow: 0 6px 18px rgba(9,21,30,0.3), 4px 4px 0px rgba(9,21,30,0.15);
+    transform: translateY(-1px);
+}
+.hero-scan-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 6px rgba(9,21,30,0.2), 1px 1px 0px rgba(9,21,30,0.1);
+}
+
+/* Feed badges */
+.feed-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 2px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.feed-badge::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.7;
+}
+.feed-urlhaus  { background: rgba(186,26,26,0.1);  color: #ba1a1a; border: 1px solid rgba(186,26,26,0.2); }
+.feed-phishtank{ background: rgba(106,94,56,0.1);  color: #6a5e38; border: 1px solid rgba(106,94,56,0.2); }
+.feed-openphish{ background: rgba(9,21,30,0.07);   color: #09151e; border: 1px solid rgba(9,21,30,0.15); }
+.feed-rdap     { background: rgba(56,106,32,0.1);  color: #386a20; border: 1px solid rgba(56,106,32,0.2); }
+.feed-crt      { background: rgba(56,90,130,0.1);  color: #38527a; border: 1px solid rgba(56,90,130,0.2); }
+
+/* Scan input wrapper focus glow (legacy) */
+.scan-input-wrapper { transition: box-shadow 0.25s ease; }
+
+/* Animated scan line sweep */
+@keyframes scan-sweep {
+    0%   { top: -4px; opacity: 0.15; }
+    40%  { opacity: 0.06; }
+    100% { top: 110%; opacity: 0; }
+}
+.scan-line-anim {
+    position: absolute; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent 0%, rgba(9,21,30,0.4) 50%, transparent 100%);
+    pointer-events: none; z-index: 5;
+    animation: scan-sweep 3.5s ease-in-out infinite;
+}
+
+/* ============================================================
+   ✨ KPI STAT CARDS
+   ============================================================ */
+
+.kpi-card {
+    background: #ffffff;
+    border: 1px solid #e4e2e2;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06), 2px 2px 0px rgba(0,0,0,0.05);
+}
+.kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1), 4px 6px 0px rgba(0,0,0,0.08);
+}
+
+.kpi-top-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+}
+.kpi-bar-neutral { background: #74777b; }
+.kpi-bar-danger  { background: linear-gradient(90deg, #ba1a1a, #d42020); }
+.kpi-bar-amber   { background: linear-gradient(90deg, #6a5e38, #8a7848); }
+.kpi-bar-green   { background: linear-gradient(90deg, #386a20, #4a8a28); }
+
+.kpi-icon-wrap {
+    width: 36px; height: 36px;
+    background: #f5f3f3;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+    color: #74777b;
+}
+.kpi-icon-danger { background: rgba(186,26,26,0.08); color: #ba1a1a; }
+.kpi-icon-amber  { background: rgba(106,94,56,0.08); color: #6a5e38; }
+.kpi-icon-green  { background: rgba(56,106,32,0.08); color: #386a20; }
+
+.kpi-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #74777b;
+    margin-bottom: 4px;
+}
+.kpi-value {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 52px;
+    font-weight: 700;
+    line-height: 1;
+    color: #09151e;
+    letter-spacing: -0.02em;
+}
+.kpi-value-danger { color: #ba1a1a; }
+.kpi-value-amber  { color: #6a5e38; }
+.kpi-value-green  { color: #386a20; }
+
+.kpi-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: #c4c7cb;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+}
+
+/* ============================================================
+   ✨ BRIEFING HEADER
+   ============================================================ */
+
+.briefing-header { }
+.briefing-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+/* ============================================================
+   ✨ VERDICT TALLY CARD
+   ============================================================ */
+
+.tally-card {
+    background: #ffffff;
+    border: 1px solid #e4e2e2;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06), 2px 2px 0px rgba(0,0,0,0.04);
+    overflow: hidden;
+}
+
+.tally-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0edee;
+    background: #fafafa;
+}
+.tally-card-header h3 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #09151e;
+    flex: 1;
+}
+.tally-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    background: #09151e;
+    color: #4ade80;
+    padding: 2px 8px;
+    letter-spacing: 0.08em;
+}
+
+.tally-bars-list {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.tally-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tally-row-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #1b1c1c;
+}
+
+.tally-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.tally-dot-red   { background: #ba1a1a; }
+.tally-dot-amber { background: #6a5e38; }
+.tally-dot-green { background: #386a20; }
+
+.tally-score-hint {
+    margin-left: auto;
+    font-size: 9px;
+    color: #74777b;
+    font-weight: 400;
+}
+
+.tally-pct {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: #09151e;
+    text-align: right;
+}
+
+.tally-bar-track {
+    width: 100%;
+    height: 8px;
+    background: #f0edee;
+    border: 1px solid #e4e2e2;
+    overflow: hidden;
+}
+
+.tally-bar-fill {
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    transition: width 0.9s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.tally-bar-fill::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2.5s linear infinite;
+}
+.tally-fill-red   { background: linear-gradient(90deg, #ba1a1a, #d42020); }
+.tally-fill-amber { background: linear-gradient(90deg, #6a5e38, #8a7848); }
+.tally-fill-green { background: linear-gradient(90deg, #386a20, #4a8a28); }
+
+.tally-summary {
+    padding: 16px 20px;
+    border-top: 1px solid #f0edee;
+    font-family: 'Newsreader', serif;
+    font-size: 13px;
+    font-style: italic;
+    color: #74777b;
+    line-height: 1.6;
+}
+
+/* ============================================================
+   ✨ INTAKE LOG CARD
+   ============================================================ */
+
+.intake-log-card {
+    background: #ffffff;
+    border: 1px solid #e4e2e2;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06), 2px 2px 0px rgba(0,0,0,0.04);
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.intake-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0edee;
+    background: #fafafa;
+}
+
+.intake-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #c4c7cb;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-align: center;
+    flex: 1;
+}
+
+.intake-log-footer {
+    padding: 14px 20px;
+    border-top: 1px solid #f0edee;
+    background: #fafafa;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: auto;
+}
+
+.intake-view-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #09151e;
+    border-bottom: 1px solid #09151e;
+    padding-bottom: 1px;
+    transition: opacity 0.15s ease;
+}
+.intake-view-all-btn:hover { opacity: 0.6; }
+
+/* Intake log rows */
+#intake-log-list > div:not(.intake-empty-state) {
+    transition: background 0.15s ease, padding-left 0.15s ease;
+    padding: 12px 20px;
+    cursor: pointer;
+}
+#intake-log-list > div:not(.intake-empty-state):hover {
+    background: rgba(240,223,175,0.25);
+    padding-left: 26px;
+}
+
+/* ============================================================
+   ✨ FOLDER REPORT
+   ============================================================ */
+
+.folder-report { transition: box-shadow 0.3s ease; }
+.folder-report:hover {
+    box-shadow: 12px 12px 0px 0px rgba(0,0,0,0.42);
+}
+
+/* ── Exhibit A frame ─────────────────────────────────────── */
+#exhibit-frame {
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
+}
+#exhibit-frame:hover {
+    transform: rotate(0deg) scale(1.015) !important;
+    box-shadow: 0 14px 36px rgba(0,0,0,0.18);
+}
+
+/* ── Evidence log items ──────────────────────────────────── */
+@keyframes evidence-in {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+.evidence-item { animation: evidence-in 0.28s ease forwards; }
+
+/* ── Verdict stamp shimmer ───────────────────────────────── */
+@keyframes stamp-shimmer {
+    0%, 100% { filter: brightness(1); }
+    50%       { filter: brightness(1.12) drop-shadow(0 0 5px currentColor); }
+}
+#verdict-stamp-container:not(.opacity-0) {
+    animation: stamp-shimmer 3s ease-in-out 0.5s infinite;
+}
+
+/* ============================================================
+   ✨ CRT TERMINAL
+   ============================================================ */
+
+#log-terminal-container {
+    position: relative;
+    overflow: hidden;
+}
+#log-terminal-container::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+        0deg, transparent, transparent 3px,
+        rgba(0,0,0,0.05) 3px, rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none; z-index: 10;
+}
+#log-terminal-container::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.3) 100%);
+    pointer-events: none; z-index: 11;
+}
+
+@keyframes cursor-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+.terminal-cursor::after {
+    content: '█';
+    animation: cursor-blink 1s step-end infinite;
+    color: #38BDF8;
+    font-size: 0.85em;
+    margin-left: 3px;
+}
+
+@keyframes log-line-in {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.log-line { animation: log-line-in 0.22s ease forwards; }
+
+/* ============================================================
+   ✨ SECTION TRANSITIONS
+   ============================================================ */
+
+@keyframes section-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+#view-section-dashboard:not(.hidden),
+#view-section-archive:not(.hidden),
+#view-section-registry:not(.hidden),
+#view-section-logs:not(.hidden),
+#view-section-settings:not(.hidden) {
+    animation: section-fade-in 0.3s ease forwards;
+}
+
+/* ============================================================
+   ✨ MISC ENHANCEMENTS
+   ============================================================ */
+
+/* Toolbar buttons */
+#case-toolbar button {
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+#case-toolbar button:hover {
+    transform: translateY(-2px);
+    box-shadow: 2px 4px 8px rgba(0,0,0,0.12);
+}
+
+/* Scan button (legacy input form) */
+#scan-btn {
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+/* Archive grid cards */
+#archive-grid > div {
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+#archive-grid > div:hover {
+    transform: translateY(-4px);
+    box-shadow: 8px 12px 0px rgba(0,0,0,0.16);
+}
+
+/* Dymo label float */
+@keyframes dymo-float {
+    0%, 100% { transform: rotate(-1.5deg) translateY(0px); }
+    50%       { transform: rotate(-1deg) translateY(-3px); }
+}
+#dymo-label { animation: dymo-float 4.5s ease-in-out infinite; }
+#dymo-label:hover > div { background: #386a20 !important; }
+
+/* Redacted flicker */
+@keyframes redacted-flicker {
+    0%, 93%, 100% { opacity: 0.6; }
+    94%, 96%      { opacity: 0.15; }
+    95%           { opacity: 0.5; }
+}
+.redacted-box { animation: redacted-flicker 9s ease-in-out infinite; }
+
+/* Folder side tab */
+@keyframes tab-nudge {
+    0%, 100% { transform: translateX(0); }
+    50%       { transform: translateX(2px); }
+}
+#folder-tab-id { animation: tab-nudge 7s ease-in-out infinite; }
+
+/* Threat feeds banner */
+@keyframes threat-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(186,26,26,0.5); }
+    50%       { box-shadow: 0 0 0 10px rgba(186,26,26,0); }
+}
+#threat-feeds-banner { animation: threat-pulse 1.6s ease-in-out infinite !important; }
+
+/* Settings save btn */
+#settings-save-btn {
+    transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+#settings-save-btn:hover {
+    box-shadow: 0 5px 16px rgba(9,21,30,0.22);
+    transform: translateY(-1px);
+}
+
+/* Scrollbars */
+main::-webkit-scrollbar { width: 6px; }
+main::-webkit-scrollbar-track { background: #eae7e8; }
+main::-webkit-scrollbar-thumb { background: #c4c7cb; }
+main::-webkit-scrollbar-thumb:hover { background: #74777b; }
+#log-terminal::-webkit-scrollbar { width: 4px; }
+#log-terminal::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+#log-terminal::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); }
+
+/* =============================================================
+   ✦ MOTION / STATIC EFFECTS  — v3
+   ============================================================= */
+
+/* ── 1. SIDEBAR FILM GRAIN NOISE ──────────────────────────── */
+/* Animated noise overlay using repeating CSS trick */
+@keyframes grain-shift {
+  0%   { transform: translate(0,    0);    }
+  10%  { transform: translate(-2%,  -3%);  }
+  20%  { transform: translate(3%,   1%);   }
+  30%  { transform: translate(-1%,  4%);   }
+  40%  { transform: translate(4%,   -2%);  }
+  50%  { transform: translate(-3%,  3%);   }
+  60%  { transform: translate(2%,   -4%);  }
+  70%  { transform: translate(-4%,  1%);   }
+  80%  { transform: translate(1%,   -1%);  }
+  90%  { transform: translate(3%,   2%);   }
+  100% { transform: translate(0,    0);    }
+}
+
+.sidebar-noise {
+  position: absolute;
+  inset: -20%;                        /* oversized so shifting never shows edges */
+  width: 140%; height: 140%;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1;
+  animation: grain-shift 0.4s steps(1) infinite;
+  mix-blend-mode: overlay;
+}
+
+/* ensure sidebar children are above the noise layer */
+.sidebar-dark > *:not(.sidebar-noise) { position: relative; z-index: 2; }
+
+/* ── 2. LOGO GLITCH ───────────────────────────────────────── */
+@keyframes glitch-clip-1 {
+  0%, 85%, 100% { clip-path: inset(0 0 100% 0); transform: translate(0); opacity: 0; }
+  86%  { clip-path: inset(15% 0 60% 0); transform: translate(-3px, 1px); opacity: 1; }
+  88%  { clip-path: inset(40% 0 30% 0); transform: translate(3px, -1px); opacity: 1; }
+  90%  { clip-path: inset(65% 0 5%  0); transform: translate(-2px, 2px); opacity: 1; }
+  92%  { clip-path: inset(0 0 100% 0);  transform: translate(0); opacity: 0; }
+}
+
+@keyframes glitch-clip-2 {
+  0%, 88%, 100% { clip-path: inset(0 0 100% 0); transform: translate(0); opacity: 0; }
+  89%  { clip-path: inset(30% 0 45% 0); transform: translate(4px, -2px); opacity: 1; }
+  91%  { clip-path: inset(55% 0 15% 0); transform: translate(-4px, 1px); opacity: 1; }
+  93%  { clip-path: inset(0 0 100% 0);  opacity: 0; }
+}
+
+@keyframes logo-color-shift {
+  0%, 84%, 100% { color: #ffffff; text-shadow: none; }
+  85%           { color: #ff4444; text-shadow: -2px 0 #00ffff; }
+  87%           { color: #00ffff; text-shadow:  2px 0 #ff4444; }
+  89%           { color: #ffffff; text-shadow: none; }
+  90%           { color: #ff4444; text-shadow: -3px 0 #4444ff; }
+  92%           { color: #ffffff; text-shadow: none; }
+}
+
+.glitch-logo {
+  position: relative;
+  animation: logo-color-shift 7s ease-in-out infinite;
+}
+
+.glitch-logo::before,
+.glitch-logo::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  pointer-events: none;
+}
+
+.glitch-logo::before {
+  color: #ff4444;
+  animation: glitch-clip-1 7s ease-in-out infinite;
+}
+
+.glitch-logo::after {
+  color: #00eeee;
+  animation: glitch-clip-2 7s ease-in-out infinite;
+}
+
+/* ── 3. TERMINAL ROLLING SCANLINE ─────────────────────────── */
+@keyframes rolling-scan {
+  0%   { top: -6px; opacity: 0; }
+  5%   { opacity: 0.9; }
+  95%  { opacity: 0.4; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.terminal-rolling-scan {
+  position: absolute;
+  left: 0; right: 0;
+  height: 6px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(56, 189, 248, 0.35) 40%,
+    rgba(56, 189, 248, 0.6)  50%,
+    rgba(56, 189, 248, 0.35) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 15;
+  animation: rolling-scan 4s linear infinite;
+  filter: blur(1px);
+/* ── 4. TERMINAL ROLLING SCANLINE ─────────────────────────── */
+.terminal-rolling-scan {
+  position: absolute;
+  left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(56, 189, 248, 0.2) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 5;
+  animation: rolling-scan 5s linear infinite;
+}
+
+/* ── 6. HEADER CLOCK PHOSPHOR FLICKER ────────────────────── */
+@keyframes phosphor-flicker {
+  0%, 96%, 100% { opacity: 1; text-shadow: 0 0 8px rgba(74,222,128,0.6); }
+  97%           { opacity: 0.7; text-shadow: 0 0 3px rgba(74,222,128,0.2); }
+  98%           { opacity: 1; text-shadow: 0 0 12px rgba(74,222,128,0.8); }
+  99%           { opacity: 0.85; text-shadow: 0 0 6px rgba(74,222,128,0.4); }
+}
+
+.header-clock {
+  animation: phosphor-flicker 4s ease-in-out infinite;
+}
+
+/* ── 7. MAIN CANVAS DOT GRID ─────────────────────────────── */
+/* Subtle animated dot grid on the main content bg */
+main {
+  background-image:
+    radial-gradient(circle, rgba(9,21,30,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  animation: grid-drift 20s linear infinite;
+}
+
+@keyframes grid-drift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 24px 24px; }
+}
+
+/* ── 8. KPI CARDS — STATIC GRAIN OVERLAY ────────────────── */
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 80px 80px;
+  opacity: 0.025;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  animation: grain-shift 0.5s steps(1) infinite;
+}
+
+/* ── 9. HERO INPUT — ELECTRIC FOCUS PULSE ────────────────── */
+@keyframes electric-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(9,21,30,0), 4px 4px 0px rgba(9,21,30,0.08); }
+  50%       { box-shadow: 0 0 0 4px rgba(9,21,30,0.06), 4px 4px 0px rgba(9,21,30,0.12); }
+}
+
+.hero-input-box:focus-within {
+  animation: electric-pulse 2s ease-in-out infinite;
+}
+
+/* ── 10. MARCHING ANTS BORDER on tally card header ────────── */
+@keyframes march-dash {
+  to { stroke-dashoffset: -20; }
+}
+
+/* We use an outline trick with a box-shadow pulse + clip animation */
+@keyframes marching-border {
+  0%   { background-position: 0 0,   100% 0,   100% 100%, 0 100%; }
+  100% { background-position: 20px 0, 100% 20px, calc(100% - 20px) 100%, 0 calc(100% - 20px); }
+}
+
+.tally-card-header {
+  background-image:
+    linear-gradient(90deg, #c4c7cb 50%, transparent 50%),
+    linear-gradient(180deg, #c4c7cb 50%, transparent 50%),
+    linear-gradient(90deg, #c4c7cb 50%, transparent 50%),
+    linear-gradient(180deg, #c4c7cb 50%, transparent 50%);
+  background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
+  background-size: 10px 1px, 1px 10px, 10px 1px, 1px 10px;
+  background-position: 0 0, 100% 0, 0 100%, 0 0;
+  animation: marching-border 0.6s linear infinite;
+  background-color: #fafafa;
+  border-bottom: none !important;
+}
+
+/* ── 11. FEED BADGES — PULSE GLOW ────────────────────────── */
+@keyframes badge-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+  50%       { box-shadow: 0 0 6px 1px currentColor; }
+}
+
+.feed-badge {
+  animation: badge-glow 3s ease-in-out infinite;
+}
+.feed-urlhaus  { animation-delay: 0s; }
+.feed-phishtank{ animation-delay: 0.6s; }
+.feed-openphish{ animation-delay: 1.2s; }
+.feed-rdap     { animation-delay: 1.8s; }
+.feed-crt      { animation-delay: 2.4s; }
+
+/* ── 12. SIDEBAR NAV — HOVER STATIC FLICKER ─────────────── */
+@keyframes nav-hover-glitch {
+  0%, 100% { text-shadow: none; transform: translateX(0); }
+  20%       { text-shadow: -1px 0 rgba(255,68,68,0.5); transform: translateX(-1px); }
+  40%       { text-shadow:  1px 0 rgba(0,238,238,0.5); transform: translateX(1px); }
+  60%       { text-shadow: none; transform: translateX(0); }
+}
+
+.sidebar-nav-inactive:hover {
+  animation: nav-hover-glitch 0.3s ease-in-out;
+}
+
+/* ── 13. VERDICT STAMP — IMPACT STATIC ───────────────────── */
+@keyframes stamp-static {
+  0%   { filter: none; }
+  5%   { filter: brightness(1.3) contrast(1.2); }
+  10%  { filter: none; }
+  15%  { filter: hue-rotate(15deg) saturate(1.5); }
+  20%  { filter: none; }
+  100% { filter: none; }
+}
+
+#verdict-stamp-container:not(.opacity-0) {
+  animation: stamp-static 3s ease-in-out 0.5s infinite;
+}
+
+/* ── 14. HERO TITLE — SCAN UNDERLINE ─────────────────────── */
+.hero-title {
+  position: relative;
+  display: inline-block;
+}
+
+.hero-title::after {
+  content: '';
+  position: absolute;
+  bottom: -4px; left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, #ba1a1a 0%, transparent 60%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ── 15. BRIEFING HEADER — STATIC NOISE LINE ─────────────── */
+.briefing-header h2 {
+  position: relative;
+}
+
+.briefing-header h2::before {
+  content: '';
+  position: absolute;
+  left: -8px; top: 50%;
+  width: 4px; height: 60%;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, #ba1a1a, transparent);
+  animation: flicker-bar 3s ease-in-out infinite;
+}
+
+@keyframes flicker-bar {
+  0%, 100% { opacity: 1; height: 60%; }
+  50%       { opacity: 0.4; height: 70%; }
+  75%       { opacity: 0.9; height: 55%; }
+}
+
+/* ── 16. INTAKE LOG CARD — SUBTLE SCAN ───────────────────── */
+@keyframes log-card-sweep {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  20%  { opacity: 0.05; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+.intake-log-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.intake-log-card::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(180deg, transparent, rgba(9,21,30,0.03), transparent);
+  pointer-events: none;
+  z-index: 1;
+  animation: log-card-sweep 8s ease-in-out infinite;
+}
+
+/* ── 17. HEADER BAR NOISE ─────────────────────────────────── */
+.main-header {
+  position: relative;
+  overflow: hidden;
+}
+
+.main-header::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  width: 140%; height: 140%;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 60px 60px;
+  opacity: 0.025;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  animation: grain-shift 0.3s steps(1) infinite;
+}
+
+/* ── 18. SCAN BTN RADAR SPIN ─────────────────────────────── */
+@keyframes radar-spin {
+  to { transform: rotate(360deg); }
+}
+
+.hero-scan-btn .material-symbols-outlined {
+  display: inline-block;
+  animation: radar-spin 3s linear infinite;
+}
+
+.hero-scan-btn:hover .material-symbols-outlined {
+  animation: radar-spin 0.8s linear infinite;
+}
+
+/* ── 19. ARCHIVE EMPTY STATE FLICKER ─────────────────────── */
+#archive-empty-state .material-symbols-outlined {
+  animation: phosphor-flicker 3s ease-in-out infinite;
+}
+
+/* ── 20. DYMO LABEL — STATIC BUZZ ───────────────────────── */
+@keyframes label-buzz {
+  0%, 98%, 100% { transform: rotate(-1.5deg) translateY(0); }
+  98.3%         { transform: rotate(-1.5deg) translateY(-1px) skewX(1deg); }
+  98.6%         { transform: rotate(-2deg) translateY(1px) skewX(-1deg); }
+  98.9%         { transform: rotate(-1.5deg) translateY(0); }
+}
+
+#dymo-label > div {
+  animation: label-buzz 5s ease-in-out infinite;
+}
+
+/* ── 21. STATUS DOT — SLOW PULSE ─────────────────────────── */
+/* (already defined above as status-pulse; override with green for sidebar) */
+.sidebar-dark .status-dot-live {
+  background: #4ade80;
+}
+
+/* ── 22. EXHIBIT A — LIGHT LEAK ─────────────────────────── */
+#exhibit-frame::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -30%;
+  width: 60%; height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255,255,255,0.06) 50%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 20;
+  animation: light-leak 8s ease-in-out infinite;
+}
+
+@keyframes light-leak {
+  0%   { left: -60%; opacity: 0; }
+  10%  { opacity: 1; }
+  40%  { left: 120%; opacity: 0.8; }
+  41%  { opacity: 0; }
+  100% { left: 120%; opacity: 0; }
+}
+
+/* ── 23. SECTION VIEWS — SMOOTH FADE INTRO ────────────────── */
+@keyframes section-fade-in {
+  0%   { opacity: 0; transform: translateY(5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+#view-section-dashboard:not(.hidden),
+#view-section-archive:not(.hidden),
+#view-section-registry:not(.hidden),
+#view-section-logs:not(.hidden),
+#view-section-settings:not(.hidden) {
+  animation: section-fade-in 0.25s ease-out forwards;
+}
+
+/* ── 24. TERMINAL PHOSPHOR GLOW on text ──────────────────── */
+#log-terminal span {
+  text-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+}
+
+/* ── 25. FOLDER SIDE TAB — SIGNAL BLINK ─────────────────── */
+@keyframes signal-blink {
+  0%, 100% { opacity: 1; }
+  48%       { opacity: 1; }
+  50%       { opacity: 0.3; }
+  52%       { opacity: 1; }
+  80%       { opacity: 1; }
+  82%       { opacity: 0.5; }
+  84%       { opacity: 1; }
+}
+
+#folder-tab-id {
+  animation: signal-blink 6s ease-in-out infinite;
+}
+

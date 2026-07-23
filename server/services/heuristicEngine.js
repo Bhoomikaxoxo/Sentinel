@@ -28,6 +28,7 @@ const RULE_WEIGHTS = {
   invisible_credential_fields: { score: -40, desc: "Page contains hidden forms or password fields." },
   urgency_language: { score: -20, desc: "Page uses urgency language typical of social engineering." },
   brand_mismatch_dom: { score: -50, desc: "Page claims to be a brand but the domain does not match." },
+  established_brand_verified: { score: 30, desc: "Verified established global brand domain." },
   dom_analysis_failed: { score: 0, desc: "Failed to parse page DOM." }
 };
 

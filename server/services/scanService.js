@@ -179,6 +179,11 @@ exports.scanUrl = async (urlString, options = {}) => {
   log(`Registry Record: Compiling public registry records (WHOIS, DNS, Geolocation, SSL history)...`);
   const registryRecord = await registryService.buildRegistryRecord(hostname);
 
+  if (domainUtils.isEstablishedDomain(hostname) && threatFeedsMatched.length === 0) {
+    log(`Brand trust: Target domain is a verified established global brand (${hostname}). Applying brand trust verification.`);
+    factors.push({ id: 'established_brand_verified' });
+  }
+
   // Calculate Heuristics Score
   log(`Heuristics engine: Compiling risk factors...`);
   const scoreResult = heuristicEngine.calculateScore(factors);

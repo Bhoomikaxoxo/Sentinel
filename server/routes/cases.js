@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const store = require('../db/store');
+const registryService = require('../services/registryService');
 
 // GET /api/cases - List all cases
 router.get('/', (req, res) => {
@@ -9,6 +10,32 @@ router.get('/', (req, res) => {
     res.json(cases);
   } catch (error) {
     res.status(500).json({ error: 'Failed to retrieve cases' });
+  }
+});
+
+// GET /api/cases/:id/registry-refresh - Fetch or refresh live WHOIS/RDAP/DNS/SSL registry data for a case
+router.get('/:id/registry-refresh', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const caseFile = store.getCaseById(id);
+    if (!caseFile) {
+      return res.status(404).json({ error: 'Case not found' });
+    }
+
+    let hostname = caseFile.url;
+    try {
+      if (!hostname.startsWith('http://') && !hostname.startsWith('https://')) {
+        hostname = 'https://' + hostname;
+      }
+      hostname = new URL(hostname).hostname;
+    } catch(e) {}
+
+    const freshRecord = await registryService.buildRegistryRecord(hostname);
+    store.updateCase(id, { registryRecord: freshRecord });
+    res.json({ success: true, registryRecord: freshRecord });
+  } catch (error) {
+    console.error('Error refreshing registry record:', error);
+    res.status(500).json({ error: 'Failed to refresh registry record' });
   }
 });
 

@@ -3,3 +3,6 @@ node_modules/
 *.log
 .DS_Store
 render-worker/node_modules/
+server/db/cache/
+server/db/threat-feeds/
+

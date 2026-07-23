@@ -27,7 +27,8 @@ const FRAGMENTS = {
   dom_analysis_failed: "DOM structural analysis was skipped or failed.",
   new_ssl_certificate: "The SSL certificate was issued in the last 7 days, indicating recently established server infrastructure.",
   wayback_content_divergence: "The page content diverges significantly from its historic Wayback Machine archive, indicating a possible content hijack or defacement.",
-  visual_content_changed: "The page content has changed visually from a previous scan, indicating a potential layout or credential field modification."
+  visual_content_changed: "The page content has changed visually from a previous scan, indicating a potential layout or credential field modification.",
+  established_brand_verified: "The domain is a verified established global brand domain. All community threat intelligence feeds (URLhaus, PhishTank, OpenPhish) report a clean status."
 };
 
 exports.buildExplanation = (scanResult) => {

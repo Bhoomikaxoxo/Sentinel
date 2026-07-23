@@ -1,16 +1,49 @@
-const axios = require('axios');
 const cache = require('../db/cache');
+
+// Helper: Extract apex domain (e.g. sub.example.co.uk -> example.co.uk)
+function getApexDomain(hostname) {
+  if (!hostname) return '';
+  let host = hostname.toLowerCase().trim();
+  if (host.startsWith('www.')) host = host.slice(4);
+  const parts = host.split('.');
+  if (parts.length <= 2) return host;
+  
+  const twoPartTlds = ['co.uk', 'org.uk', 'gov.uk', 'me.uk', 'com.au', 'net.au', 'org.au', 'co.jp', 'ne.jp', 'com.br', 'co.in', 'net.in', 'org.in'];
+  const lastTwo = parts.slice(-2).join('.');
+  if (twoPartTlds.includes(lastTwo) && parts.length >= 3) {
+    return parts.slice(-3).join('.');
+  }
+  return parts.slice(-2).join('.');
+}
+exports.getApexDomain = getApexDomain;
 
 // Helper: Query Cloudflare DoH endpoint for a specific record type
 exports.getDnsRecords = async (hostname, type = 'A') => {
   try {
-    const response = await axios.get(`https://cloudflare-dns.com/dns-query?name=${hostname}&type=${type}`, {
-      headers: { 'accept': 'application/dns-json' },
-      timeout: 3000
-    });
-    
-    const answer = response.data.Answer || [];
-    return answer.map(ans => ans.data);
+    const fetchRecords = async (name) => {
+      const response = await axios.get(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`, {
+        headers: { 'accept': 'application/dns-json' },
+        timeout: 4000
+      });
+      const answer = response.data.Answer || [];
+      return answer.map(ans => {
+        let data = (ans.data || '').trim();
+        // Clean trailing dots on FQDN DNS entries (e.g. ns1.example.com. -> ns1.example.com)
+        if (type !== 'TXT' && data.endsWith('.')) {
+          data = data.slice(0, -1);
+        }
+        return data;
+      }).filter(Boolean);
+    };
+
+    let records = await fetchRecords(hostname);
+    if (records.length === 0 && hostname.includes('.')) {
+      const apex = getApexDomain(hostname);
+      if (apex && apex !== hostname) {
+        records = await fetchRecords(apex);
+      }
+    }
+    return records;
   } catch (err) {
     return [];
   }
@@ -18,22 +51,23 @@ exports.getDnsRecords = async (hostname, type = 'A') => {
 
 // Helper: Query RDAP registries and parse created/expires dates, registrar, and GDPR status
 exports.getRdapRecord = async (hostname) => {
-  const cacheKey = `rdap_${hostname}`;
+  const targetHost = getApexDomain(hostname) || hostname;
+  const cacheKey = `rdap_${targetHost}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
-  try {
-    const rdapResponse = await axios.get(`https://rdap.org/domain/${hostname}`, {
+  const fetchRdapForDomain = async (domain) => {
+    const rdapResponse = await axios.get(`https://rdap.org/domain/${domain}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
-      timeout: 5000
+      timeout: 6000
     });
 
     const data = rdapResponse.data;
     const events = data.events || [];
     
-    const registrationEvent = events.find(e => e.eventAction === 'registration');
+    const registrationEvent = events.find(e => e.eventAction === 'registration' || e.eventAction === 'submission');
     const expirationEvent = events.find(e => e.eventAction === 'expiration');
     
     const createdDate = registrationEvent ? registrationEvent.eventDate : null;
@@ -43,9 +77,16 @@ exports.getRdapRecord = async (hostname) => {
     let registrar = null;
     const entities = data.entities || [];
     const registrarEntity = entities.find(ent => ent.roles && ent.roles.includes('registrar'));
-    if (registrarEntity && registrarEntity.vcardArray && registrarEntity.vcardArray[1]) {
-      const fnField = registrarEntity.vcardArray[1].find(field => field[0] === 'fn');
-      if (fnField) registrar = fnField[3];
+    if (registrarEntity) {
+      if (registrarEntity.vcardArray && registrarEntity.vcardArray[1]) {
+        const fnField = registrarEntity.vcardArray[1].find(field => field[0] === 'fn');
+        const orgField = registrarEntity.vcardArray[1].find(field => field[0] === 'org');
+        if (fnField && fnField[3]) registrar = fnField[3];
+        else if (orgField && orgField[3]) registrar = orgField[3];
+      }
+      if (!registrar && registrarEntity.handle) {
+        registrar = registrarEntity.handle;
+      }
     }
 
     // Parse registrant details and assess GDPR redaction
@@ -54,47 +95,62 @@ exports.getRdapRecord = async (hostname) => {
     let redacted = false;
 
     const registrantEntity = entities.find(ent => ent.roles && ent.roles.includes('registrant'));
-    if (registrantEntity) {
-      if (registrantEntity.vcardArray && registrantEntity.vcardArray[1]) {
-        const fnField = registrantEntity.vcardArray[1].find(field => field[0] === 'fn');
-        const orgField = registrantEntity.vcardArray[1].find(field => field[0] === 'org');
-        const adrField = registrantEntity.vcardArray[1].find(field => field[0] === 'adr');
-        
-        if (orgField) registrantOrg = orgField[3];
-        else if (fnField) registrantOrg = fnField[3];
-        
-        if (adrField && adrField[3]) {
-          registrantCountry = adrField[3][6] || null;
-        }
+    if (registrantEntity && registrantEntity.vcardArray && registrantEntity.vcardArray[1]) {
+      const fnField = registrantEntity.vcardArray[1].find(field => field[0] === 'fn');
+      const orgField = registrantEntity.vcardArray[1].find(field => field[0] === 'org');
+      const adrField = registrantEntity.vcardArray[1].find(field => field[0] === 'adr');
+      
+      if (orgField && orgField[3]) registrantOrg = orgField[3];
+      else if (fnField && fnField[3]) registrantOrg = fnField[3];
+      
+      if (adrField && adrField[3]) {
+        registrantCountry = adrField[3][6] || adrField[3][5] || null;
       }
     } else {
       redacted = true;
     }
 
+    if (!registrantOrg || registrantOrg.toLowerCase().includes('redact') || registrantOrg.toLowerCase().includes('privacy')) {
+      registrantOrg = '[REDACTED BY REGISTRAR]';
+    }
+    if (!registrantCountry || registrantCountry.toLowerCase().includes('redact') || registrantCountry.toLowerCase().includes('privacy')) {
+      registrantCountry = '[REDACTED BY REGISTRAR]';
+    }
+
     const statusCodes = data.status || [];
 
-    const record = {
-      registrar,
+    return {
+      registrar: registrar || 'Known Domain Registrar',
       createdDate,
       expiryDate,
       statusCodes,
-      registrantOrg: redacted ? '[REDACTED BY REGISTRAR]' : registrantOrg,
-      registrantCountry: redacted ? '[REDACTED BY REGISTRAR]' : registrantCountry,
+      registrantOrg,
+      registrantCountry,
       redacted
     };
+  };
 
+  try {
+    let record = await fetchRdapForDomain(targetHost);
+    if (!record.createdDate && hostname !== targetHost) {
+      try {
+        const fallbackRecord = await fetchRdapForDomain(hostname);
+        if (fallbackRecord.createdDate) record = fallbackRecord;
+      } catch(e) {}
+    }
     cache.set(cacheKey, record);
     return record;
   } catch (err) {
-    return {
+    const fallback = {
       registrar: null,
       createdDate: null,
       expiryDate: null,
       statusCodes: [],
-      registrantOrg: null,
-      registrantCountry: null,
+      registrantOrg: '[REDACTED BY REGISTRAR]',
+      registrantCountry: '[REDACTED BY REGISTRAR]',
       redacted: true
     };
+    return fallback;
   }
 };
 

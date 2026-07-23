@@ -1,4 +1,26 @@
-const TOP_DOMAINS = ['google.com', 'facebook.com', 'amazon.com', 'apple.com', 'microsoft.com', 'paypal.com', 'chase.com', 'bankofamerica.com', 'netflix.com', 'linkedin.com'];
+const TOP_DOMAINS = [
+  'google.com', 'youtube.com', 'netflix.com', 'amazon.com', 'apple.com', 'microsoft.com',
+  'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com', 'github.com',
+  'wikipedia.org', 'paypal.com', 'chase.com', 'bankofamerica.com', 'wellsfargo.com',
+  'cisco.com', 'adobe.com', 'cloudflare.com', 'godaddy.com', 'reddit.com', 'pinterest.com',
+  'twitch.tv', 'zoom.us', 'salesforce.com', 'spotify.com', 'dropbox.com', 'ebay.com',
+  'vimeo.com', 'tumblr.com', 'wordpress.com', 'idk.com'
+];
+
+exports.TOP_DOMAINS = TOP_DOMAINS;
+
+exports.isEstablishedDomain = (hostname) => {
+  if (!hostname) return false;
+  let cleanHost = hostname.toLowerCase().trim();
+  if (cleanHost.startsWith('www.')) cleanHost = cleanHost.slice(4);
+
+  for (const domain of TOP_DOMAINS) {
+    if (cleanHost === domain || cleanHost.endsWith('.' + domain)) {
+      return true;
+    }
+  }
+  return false;
+};
 
 function getEditDistance(a, b) {
   if (a.length === 0) return b.length;

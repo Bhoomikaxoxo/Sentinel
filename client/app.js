@@ -39,6 +39,39 @@ function initTabs() {
   document.getElementById('view-logbook-btn').addEventListener('click', () => {
     switchTab('nav-archive');
   });
+
+  // Toolbar shortcut to jump to Registry Record for current case
+  const viewCaseRegistryBtn = document.getElementById('view-case-registry-btn');
+  if (viewCaseRegistryBtn) {
+    viewCaseRegistryBtn.addEventListener('click', () => {
+      switchTab('nav-registry');
+    });
+  }
+
+  // Registry section shortcut to jump to Full Report for active case
+  const registryToReportBtn = document.getElementById('registry-to-report-btn');
+  if (registryToReportBtn) {
+    registryToReportBtn.addEventListener('click', () => {
+      if (currentCase) {
+        openCaseReport(currentCase);
+      } else if (serverCases.length > 0) {
+        openCaseReport(serverCases[0]);
+      } else {
+        switchTab('nav-dashboard');
+      }
+    });
+  }
+
+  // Registry section button to re-fetch live WHOIS / RDAP / DNS / SSL
+  const registryRefreshBtn = document.getElementById('registry-refresh-btn');
+  if (registryRefreshBtn) {
+    registryRefreshBtn.addEventListener('click', async () => {
+      const activeCaseFile = currentCase || serverCases[0];
+      if (activeCaseFile) {
+        await refreshRegistryRecordForCase(activeCaseFile);
+      }
+    });
+  }
 }
 
 async function switchTab(buttonId) {
@@ -49,12 +82,12 @@ async function switchTab(buttonId) {
     
     if (tab.buttonId === buttonId) {
       // Active styling
-      btn.className = 'w-full flex items-center space-x-3 bg-background text-primary border-l-4 border-outline-variant px-4 py-3 font-bold font-data-mono text-label-sm uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]';
+      btn.className = 'sidebar-nav-active w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all';
       section.classList.remove('hidden');
       document.getElementById('view-title').textContent = tab.title;
     } else {
       // Inactive styling
-      btn.className = 'w-full flex items-center space-x-3 text-ink px-4 py-3 opacity-80 hover:bg-secondary-fixed hover:opacity-100 transition-all font-data-mono text-label-sm uppercase border-l-4 border-transparent';
+      btn.className = 'sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all';
       section.classList.add('hidden');
     }
   });
@@ -842,11 +875,18 @@ function renderArchiveGrid() {
             </p>
           </div>
         </div>
-        <div class="flex justify-between items-center mt-4">
+        <div class="flex flex-wrap gap-2 justify-between items-center mt-4">
           <span class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2 py-0.5">SCORE: ${c.score}/100</span>
-          <button class="font-data-mono text-label-sm underline hover:text-primary transition-colors view-report-btn">
-            VIEW FULL REPORT [→]
-          </button>
+          <div class="flex items-center gap-2">
+            <button class="font-data-mono text-xs border border-outline-variant px-2.5 py-1 bg-paper hover:bg-secondary-container transition-all flex items-center gap-1 view-registry-btn font-bold" title="View WHOIS / RDAP Registry Record for this case">
+              <span class="material-symbols-outlined text-[14px]">description</span>
+              <span>REGISTRY</span>
+            </button>
+            <button class="font-data-mono text-xs border border-primary bg-primary text-white px-2.5 py-1 hover:bg-primary/90 transition-all flex items-center gap-1 view-report-btn font-bold" title="View Full Case Report">
+              <span>REPORT</span>
+              <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+            </button>
+          </div>
         </div>
         
         <!-- Pinned attachment thumbnail preview -->
@@ -861,6 +901,12 @@ function renderArchiveGrid() {
         ` : ''}
       </div>
     `;
+
+    entry.querySelector('.view-registry-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentCase = c;
+      switchTab('nav-registry');
+    });
 
     entry.querySelector('.view-report-btn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -897,12 +943,66 @@ function openCaseReport(c) {
   switchTab('nav-dashboard');
 }
 
+let isRefreshingRegistry = false;
+
+async function refreshRegistryRecordForCase(caseFile) {
+  if (!caseFile || isRefreshingRegistry) return;
+  isRefreshingRegistry = true;
+
+  const btn = document.getElementById('registry-refresh-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="material-symbols-outlined text-[14px] animate-spin">sync</span><span>SWEEPING...</span>`;
+  }
+
+  try {
+    const res = await fetch(`/api/cases/${caseFile.id}/registry-refresh`);
+    const data = await res.json();
+    if (data.success && data.registryRecord) {
+      caseFile.registryRecord = data.registryRecord;
+      const idx = serverCases.findIndex(sc => sc.id === caseFile.id);
+      if (idx !== -1) {
+        serverCases[idx].registryRecord = data.registryRecord;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to refresh registry record:', err);
+  } finally {
+    isRefreshingRegistry = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span class="material-symbols-outlined text-[14px]">refresh</span><span>RE-SWEEP LIVE</span>`;
+    }
+    renderRegistryRecord();
+  }
+}
+
 // Render Printed Official Public Registry Lookup Record Sheet
 function renderRegistryRecord() {
   const emptyState = document.getElementById('registry-empty-state');
   const content = document.getElementById('registry-record-content');
   
   const activeCaseFile = currentCase || serverCases[0];
+
+  // Populate active case selector dropdown in Registry Record view
+  const caseSelect = document.getElementById('registry-case-select');
+  if (caseSelect && serverCases.length > 0) {
+    caseSelect.innerHTML = serverCases.map(sc => {
+      const isSel = (activeCaseFile && sc.id === activeCaseFile.id) ? 'selected' : '';
+      const domain = sc.url.replace('https://', '').replace('http://', '').split('/')[0];
+      return `<option value="${sc.id}" ${isSel}>CASE #${sc.id.substring(0, 8)} (${domain})</option>`;
+    }).join('');
+
+    caseSelect.onchange = (e) => {
+      const selectedId = e.target.value;
+      const found = serverCases.find(sc => sc.id === selectedId);
+      if (found) {
+        currentCase = found;
+        renderRegistryRecord();
+      }
+    };
+  }
+
   if (!activeCaseFile || !activeCaseFile.registryRecord) {
     emptyState.classList.remove('hidden');
     return;
@@ -910,26 +1010,51 @@ function renderRegistryRecord() {
 
   emptyState.classList.add('hidden');
   const record = activeCaseFile.registryRecord;
+  const regCheck = record.registration || {};
+  const dnsCheck = record.dns || {};
+
+  // Auto-trigger live registry sweep if current record has missing registration/WHOIS/cert data
+  if (activeCaseFile && !isRefreshingRegistry && (!regCheck.createdDate || !regCheck.registrar || !record.certificate || ((!dnsCheck.mx || dnsCheck.mx.length === 0) && (!dnsCheck.ns || dnsCheck.ns.length === 0)))) {
+    refreshRegistryRecordForCase(activeCaseFile);
+  }
 
   document.getElementById('registry-case-id').textContent = activeCaseFile.id.substring(0, 8);
   document.getElementById('registry-fetched-at').textContent = `fetchedAt: ${record.fetchedAt ? record.fetchedAt.replace('T', ' // ').substring(0, 21) : activeCaseFile.timestamp}`;
 
   function formatDotRow(label, value) {
-    const dotsCount = Math.max(3, 40 - label.length);
-    const dots = '.'.repeat(dotsCount);
+    const displayVal = value || '(unavailable)';
     return `
-      <div class="flex justify-between font-data-mono text-xs whitespace-pre my-1.5 border-b border-dashed border-gray-100 pb-1">
-        <span class="text-gray-500 uppercase font-bold">${label} ${dots}</span>
-        <span class="font-bold text-ink text-right break-all max-w-md">${value || '(unavailable)'}</span>
+      <div class="flex items-baseline justify-between font-data-mono text-xs my-2.5 pb-1 border-b border-dashed border-gray-200/80 gap-2 min-w-0">
+        <span class="text-gray-500 uppercase font-bold shrink-0 tracking-wider">${label}</span>
+        <span class="flex-grow border-b border-dotted border-gray-400/60 mx-2 self-center shrink min-w-[16px]"></span>
+        <span class="font-bold text-ink text-right break-all shrink max-w-[55%] min-w-0 leading-relaxed">${displayVal}</span>
       </div>
     `;
   }
 
+  function formatDateWithDays(dateStr, isExpiry = false) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    const isoDate = d.toISOString().substring(0, 10);
+    const diffMs = Date.now() - d.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (isExpiry) {
+      const remainingDays = Math.abs(diffDays);
+      return diffDays < 0 ? `${isoDate} (in ${remainingDays.toLocaleString()} days)` : `${isoDate} (expired ${diffDays.toLocaleString()} days ago)`;
+    } else {
+      return `${isoDate} (${Math.abs(diffDays).toLocaleString()} days ago)`;
+    }
+  }
+
   // 1. Registration
   const reg = record.registration || {};
-  const createdStr = reg.createdDate ? `${reg.createdDate.substring(0, 10)} (${Math.round((Date.now() - new Date(reg.createdDate).getTime()) / (1000 * 60 * 60 * 24))} days ago)` : '(unavailable)';
-  const expiryStr = reg.expiryDate ? reg.expiryDate.substring(0, 10) : '(unavailable)';
-  const statusStr = reg.statusCodes && reg.statusCodes.length > 0 ? reg.statusCodes.join(', ') : '(unavailable)';
+  const createdStr = formatDateWithDays(reg.createdDate, false);
+  const expiryStr = formatDateWithDays(reg.expiryDate, true);
+  const statusStr = reg.statusCodes && reg.statusCodes.length > 0
+    ? reg.statusCodes.map(s => typeof s === 'string' ? s.replace(/([A-Z])/g, ' $1').toLowerCase().trim() : s).join(', ')
+    : null;
   
   let registrationHtml = `
     <div>
@@ -945,10 +1070,10 @@ function renderRegistryRecord() {
 
   // 2. DNS Records
   const dns = record.dns || { a: [], mx: [], ns: [], txt: [] };
-  const aStr = dns.a && dns.a.length > 0 ? dns.a.join(', ') : '(none found)';
-  const mxStr = dns.mx && dns.mx.length > 0 ? dns.mx.join(', ') : '(none found)';
-  const nsStr = dns.ns && dns.ns.length > 0 ? dns.ns.join(', ') : '(none found)';
-  const txtStr = dns.txt && dns.txt.length > 0 ? dns.txt.join(', ') : '(none found)';
+  const aStr = dns.a && dns.a.length > 0 ? dns.a.join(', ') : null;
+  const mxStr = dns.mx && dns.mx.length > 0 ? dns.mx.join(', ') : null;
+  const nsStr = dns.ns && dns.ns.length > 0 ? dns.ns.join(', ') : null;
+  const txtStr = dns.txt && dns.txt.length > 0 ? dns.txt.join(', ') : null;
 
   let dnsHtml = `
     <div class="mt-6">
@@ -962,6 +1087,10 @@ function renderRegistryRecord() {
 
   // 3. Network Geolocation
   const ip = record.ip || {};
+  const locationStr = ip.ip && (ip.city || ip.region || ip.country)
+    ? [ip.city, ip.region, ip.country].filter(Boolean).join(', ')
+    : null;
+
   let networkHtml = `
     <div class="mt-6">
       <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">NETWORK GEOLOCATION</h3>
@@ -969,22 +1098,24 @@ function renderRegistryRecord() {
       ${formatDotRow('Hosting Org', ip.org)}
       ${formatDotRow('ISP Operator', ip.isp)}
       ${formatDotRow('ASN', ip.asn)}
-      ${formatDotRow('Location', ip.ip ? `${ip.city}, ${ip.region}, ${ip.country}` : null)}
+      ${formatDotRow('Location', locationStr)}
     </div>
   `;
 
   // 4. SSL Certificate History
-  const cert = record.certificate || {};
-  const certIssuedStr = cert.issuedAt ? `${new Date(cert.issuedAt).toISOString().substring(0, 10)} (${Math.round((Date.now() - new Date(cert.issuedAt).getTime()) / (1000 * 60 * 60 * 24))} days ago)` : '(unavailable)';
-  const certExpiryStr = cert.notAfter ? new Date(cert.notAfter).toISOString().substring(0, 10) : '(unavailable)';
+  const cert = record.certificate || null;
+  const certIssuer = cert ? (cert.issuer || 'Unknown Certificate Authority') : 'HTTP Only (No SSL Certificate on Port 443)';
+  const certIssuedStr = cert ? formatDateWithDays(cert.issuedAt || cert.notBefore, false) : '(none detected)';
+  const certExpiryStr = cert ? formatDateWithDays(cert.notAfter, true) : '(none detected)';
+  const certCountStr = cert ? (cert.totalCertsFound !== undefined ? cert.totalCertsFound.toLocaleString() : '1') : '0';
 
   let certHtml = `
     <div class="mt-6">
       <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">SSL CERTIFICATE</h3>
-      ${formatDotRow('Issuer', cert.issuer)}
+      ${formatDotRow('Issuer', certIssuer)}
       ${formatDotRow('Issued', certIssuedStr)}
       ${formatDotRow('Valid Until', certExpiryStr)}
-      ${formatDotRow('Certificates on Record', cert.totalCertsFound !== undefined ? cert.totalCertsFound.toString() : null)}
+      ${formatDotRow('Certificates on Record', certCountStr)}
     </div>
   `;
 

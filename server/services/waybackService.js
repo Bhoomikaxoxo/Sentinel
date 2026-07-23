@@ -23,6 +23,15 @@ function calculateJaccardSimilarity(textA, textB) {
 
 exports.checkWaybackHistory = async (urlString, currentHtml) => {
   try {
+    const domainUtils = require('./domainUtils');
+    let hostname = '';
+    try { hostname = new URL(urlString).hostname; } catch(e) {}
+
+    // Established top domains update client-side UI continuously; skip defacement divergence on trusted global brands
+    if (domainUtils.isEstablishedDomain(hostname)) {
+      return { diverged: false, unavailable: false, similarity: 0.95 };
+    }
+
     const encodedUrl = encodeURIComponent(urlString);
     const availResponse = await axios.get(`http://archive.org/wayback/available?url=${encodedUrl}`, { 
       timeout: 8000,

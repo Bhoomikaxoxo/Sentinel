@@ -15,10 +15,23 @@ exports.analyzeHeaders = async (urlString) => {
     finalUrl = response.request.res.responseUrl || response.config.url;
 
     // Axios doesn't give us the full chain of URLs easily, so we just check if it was redirected
+    const domainUtils = require('./domainUtils');
+
     if (finalUrl !== urlString) {
       redirectChain.push(urlString);
       redirectChain.push(finalUrl);
-      factors.push({ id: 'redirect_occurred', detail: finalUrl });
+      
+      let origHost = '', finalHost = '';
+      try { origHost = new URL(urlString).hostname; } catch(e) {}
+      try { finalHost = new URL(finalUrl).hostname; } catch(e) {}
+      
+      const origApex = domainUtils.isEstablishedDomain ? (reputationService = require('./reputationService'), reputationService.getApexDomain(origHost)) : origHost;
+      const finalApex = domainUtils.isEstablishedDomain ? (reputationService = require('./reputationService'), reputationService.getApexDomain(finalHost)) : finalHost;
+
+      // Only flag as suspicious redirect if jumping across different domain apexes
+      if (origApex && finalApex && origApex.toLowerCase() !== finalApex.toLowerCase()) {
+        factors.push({ id: 'redirect_occurred', detail: finalUrl });
+      }
     }
 
     const headers = response.headers || {};
