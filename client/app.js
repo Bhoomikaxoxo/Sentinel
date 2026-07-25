@@ -1,9 +1,9 @@
-// SPA Tab Navigation Config
 const tabs = [
   { buttonId: 'nav-dashboard', sectionId: 'view-section-dashboard', title: 'CASE REPORT' },
   { buttonId: 'nav-archive', sectionId: 'view-section-archive', title: 'CASE ARCHIVE' },
   { buttonId: 'nav-registry', sectionId: 'view-section-registry', title: 'REGISTRY RECORD' },
   { buttonId: 'nav-logs', sectionId: 'view-section-logs', title: 'CASE AUDIT LOGS' },
+  { buttonId: 'nav-mapper', sectionId: 'view-section-mapper', title: 'INTERNET MAPPER' },
   { buttonId: 'nav-settings', sectionId: 'view-section-settings', title: 'SYSTEM SETTINGS' }
 ];
 
@@ -106,6 +106,8 @@ async function switchTab(buttonId) {
     renderArchiveGrid();
   } else if (buttonId === 'nav-registry') {
     renderRegistryRecord();
+  } else if (buttonId === 'nav-mapper') {
+    renderInternetMap();
   }
 }
 
@@ -1558,4 +1560,637 @@ function initImageDiffSlider(currentScreenshotUrl, previousScreenshotUrl) {
   handle.addEventListener('mousedown', startDrag);
   handle.addEventListener('touchstart', startDrag);
 }
+
+// ----------------------------------------------------
+// INTERNET MAPPER TAB GRAPH RENDERING (D3 FORCE-DIRECTED)
+// ----------------------------------------------------
+
+function renderInternetMap() {
+  const emptyState = document.getElementById('mapper-empty-state');
+  const recordContent = document.getElementById('mapper-record-content');
+  const caseSelect = document.getElementById('mapper-case-select');
+  if (!emptyState || !recordContent || !caseSelect) return;
+
+  const activeCaseFile = currentCase || serverCases[0];
+
+  // Populate active case selector dropdown
+  if (caseSelect && serverCases.length > 0) {
+    caseSelect.innerHTML = serverCases.map(sc => {
+      const isSel = (activeCaseFile && sc.id === activeCaseFile.id) ? 'selected' : '';
+      const domain = sc.url.replace('https://', '').replace('http://', '').split('/')[0];
+      return `<option value="${sc.id}" ${isSel}>CASE #${sc.id.substring(0, 8)} (${domain})</option>`;
+    }).join('');
+
+    if (!caseSelect.dataset.bound) {
+      caseSelect.dataset.bound = 'true';
+      caseSelect.onchange = (e) => {
+        const selectedId = e.target.value;
+        const found = serverCases.find(sc => sc.id === selectedId);
+        if (found) {
+          currentCase = found;
+          renderInternetMap();
+        }
+      };
+    }
+  }
+
+  if (!activeCaseFile) {
+    emptyState.classList.remove('hidden');
+    recordContent.classList.add('hidden');
+    return;
+  }
+
+  emptyState.classList.add('hidden');
+  recordContent.classList.remove('hidden');
+  
+  try {
+    drawMapGraph(activeCaseFile);
+  } catch (err) {
+    console.error('Failed to draw map graph:', err);
+  }
+}
+
+function drawMapGraph(caseFile) {
+  const canvas = document.getElementById('mapper-canvas');
+  if (!canvas) return;
+
+  canvas.innerHTML = '';
+
+  const width = canvas.clientWidth || 550;
+  const height = canvas.clientHeight || 550;
+
+  const hostname = caseFile.url.replace('https://', '').replace('http://', '').split('/')[0];
+
+  const nodes = [];
+  const links = [];
+
+  try {
+    // 1. Target Root Domain node
+    nodes.push({ id: hostname, type: 'domain', label: hostname });
+
+    // 2. Subdomains & IPs
+    const uniqueIps = new Set();
+    
+    // Add main host IP if present
+    if (caseFile.registryRecord && caseFile.registryRecord.ip && caseFile.registryRecord.ip.ip) {
+      const mainIp = caseFile.registryRecord.ip.ip;
+      uniqueIps.add(mainIp);
+      links.push({ source: hostname, target: mainIp });
+    }
+
+    if (caseFile.resolvedSubdomains) {
+      caseFile.resolvedSubdomains.forEach(sub => {
+        const fullSub = `${sub.subdomain}.${hostname}`;
+        if (sub.resolved) {
+          nodes.push({ id: fullSub, type: 'subdomain', label: fullSub });
+          links.push({ source: hostname, target: fullSub });
+
+          if (sub.ip) {
+            uniqueIps.add(sub.ip);
+            links.push({ source: fullSub, target: sub.ip });
+          }
+        }
+      });
+    }
+
+    // Add unique IPs to nodes list
+    uniqueIps.forEach(ip => {
+      nodes.push({ id: ip, type: 'ip', label: ip });
+    });
+
+    // 3. Technologies (unique dependency domains)
+    if (caseFile.dependencies) {
+      const uniqueTech = new Set();
+      ['scripts', 'stylesheets', 'iframes'].forEach(key => {
+        (caseFile.dependencies[key] || []).forEach(dep => {
+          if (dep.domain && dep.domain !== hostname) {
+            uniqueTech.add(dep.domain);
+          }
+        });
+      });
+      uniqueTech.forEach(tech => {
+        nodes.push({ id: tech, type: 'technology', label: tech });
+        links.push({ source: hostname, target: tech });
+      });
+    }
+
+    // 4. Risks & Vulnerabilities
+    if (caseFile.threatFeedsMatched) {
+      caseFile.threatFeedsMatched.forEach(feed => {
+        const flagId = `risk-feed-${feed}`;
+        nodes.push({ id: flagId, type: 'risk', label: `Listed: ${feed}` });
+        links.push({ source: hostname, target: flagId });
+      });
+    }
+
+    if (caseFile.brandAnnotations) {
+      caseFile.brandAnnotations.forEach((ann, idx) => {
+        const flagId = `risk-brand-${idx}`;
+        nodes.push({ id: flagId, type: 'risk', label: ann.reason || 'Brand Mismatch' });
+        links.push({ source: hostname, target: flagId });
+      });
+    }
+
+    let hasMixed = false;
+    if (caseFile.dependencies) {
+      ['scripts', 'stylesheets', 'iframes'].forEach(key => {
+        if ((caseFile.dependencies[key] || []).some(dep => dep.mixedContent)) {
+          hasMixed = true;
+        }
+      });
+    }
+    if (hasMixed) {
+      const flagId = 'risk-mixed';
+      nodes.push({ id: flagId, type: 'risk', label: 'Mixed Content Warning' });
+      links.push({ source: hostname, target: flagId });
+    }
+
+  } catch (err) {
+    console.error('[drawMapGraph] Node/Link compilation failed:', err);
+  }
+
+  // If only root node or empty, render fallback static node
+  if (nodes.length <= 1) {
+    const svg = d3.select(canvas)
+      .append('svg')
+      .attr('width', width)
+      .attr('height', height)
+      .attr('class', 'select-none w-full h-full');
+
+    const nodeG = svg.append('g')
+      .attr('class', 'mapper-node-svg cursor-pointer')
+      .attr('data-id', hostname)
+      .attr('data-type', 'domain');
+
+    nodeG.append('circle')
+      .attr('cx', width / 2)
+      .attr('cy', height / 2)
+      .attr('r', 14)
+      .attr('fill', '#09151e')
+      .attr('stroke', '#f0edee')
+      .attr('stroke-width', 2);
+
+    nodeG.append('text')
+      .attr('x', width / 2)
+      .attr('y', height / 2 - 20)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', 'IBM Plex Mono, monospace')
+      .attr('font-size', '10px')
+      .attr('font-weight', '700')
+      .attr('letter-spacing', '0.04em')
+      .attr('fill', '#1b1c1c')
+      .attr('class', 'select-none pointer-events-none')
+      .text(hostname);
+
+    setupDelegatedListener(canvas, caseFile);
+    showNodeDetails('domain', hostname, caseFile);
+    return;
+  }
+
+  // ── SSL node: add if domain has valid SSL ─────────────────────────────────
+  try {
+    if (caseFile.sslInfo && caseFile.sslInfo.issuer) {
+      const sslId = 'ssl-cert';
+      nodes.push({ id: sslId, type: 'ssl', label: caseFile.sslInfo.issuer });
+      links.push({ source: hostname, target: sslId });
+    }
+  } catch (_) {}
+
+  // Create D3 SVG viewport
+  const svg = d3.select(canvas)
+    .append('svg')
+    .attr('width', width).attr('height', height)
+    .attr('class', 'select-none w-full h-full')
+    .style('background', 'transparent');
+
+  // ── Color palette ─────────────────────────────────────────────────────────
+  const C = {
+    sub:    '#ba1a1a', ip: '#c4a040', tech: '#8a7040',
+    risk:   '#ba1a1a', ssl: '#386a20',
+    white:  '#ffffff', outline: 'rgba(255,255,255,0.14)',
+  };
+
+  // ── SVG Defs ───────────────────────────────────────────────────────────────
+  const defs = svg.append('defs');
+
+  // Radial red glow gradient for domain hub
+  const hubGrad = defs.append('radialGradient').attr('id','hub-glow')
+    .attr('cx','50%').attr('cy','50%').attr('r','50%');
+  hubGrad.append('stop').attr('offset','0%')  .attr('stop-color','#ba1a1a').attr('stop-opacity',0.55);
+  hubGrad.append('stop').attr('offset','45%') .attr('stop-color','#ba1a1a').attr('stop-opacity',0.15);
+  hubGrad.append('stop').attr('offset','100%').attr('stop-color','#ba1a1a').attr('stop-opacity',0);
+
+  // Drop shadow
+  defs.append('filter').attr('id','node-shadow')
+    .attr('x','-40%').attr('y','-40%').attr('width','180%').attr('height','180%')
+    .call(f => f.append('feDropShadow').attr('dx',0).attr('dy',2)
+      .attr('stdDeviation',4).attr('flood-color','rgba(0,0,0,0.65)'));
+
+  // Red glow filter
+  defs.append('filter').attr('id','red-glow')
+    .attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%')
+    .call(f => {
+      f.append('feGaussianBlur').attr('stdDeviation',3).attr('result','blur');
+      const m = f.append('feMerge');
+      m.append('feMergeNode').attr('in','blur');
+      m.append('feMergeNode').attr('in','SourceGraphic');
+    });
+
+  // Green glow filter
+  defs.append('filter').attr('id','green-glow')
+    .attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%')
+    .call(f => {
+      f.append('feGaussianBlur').attr('stdDeviation',3).attr('result','blur');
+      const m = f.append('feMerge');
+      m.append('feMergeNode').attr('in','blur');
+      m.append('feMergeNode').attr('in','SourceGraphic');
+    });
+
+  // ── Star particles ─────────────────────────────────────────────────────────
+  const starG = svg.append('g').attr('pointer-events','none');
+  let _s = 42;
+  const _r = () => { _s = (_s*1664525+1013904223)&0xffffffff; return (_s>>>0)/4294967296; };
+  for (let i=0;i<130;i++) {
+    starG.append('circle')
+      .attr('cx',_r()*width).attr('cy',_r()*height)
+      .attr('r',_r()*1.1+0.2).attr('fill','white').attr('opacity',_r()*0.3+0.06);
+  }
+
+  // ── Zoomable container ─────────────────────────────────────────────────────
+  const zoomContainer = svg.append('g').attr('class','zoom-container');
+
+  // ── Organic Force-Directed Network Layout ──────────────────────────────────
+  const cx = width / 2, cy = height / 2;
+
+  // Pin domain hub at center
+  const rootNode = nodes.find(n => n.type === 'domain');
+  if (rootNode) {
+    rootNode.x = cx; rootNode.y = cy;
+    rootNode.fx = cx; rootNode.fy = cy;
+  }
+
+  // Initialize non-domain nodes with organic spiral placement around center
+  const nonRootNodes = nodes.filter(n => n.type !== 'domain');
+  nonRootNodes.forEach((node, i) => {
+    delete node.fx;
+    delete node.fy;
+    const angle = (i / nonRootNodes.length) * 2 * Math.PI + (Math.random() * 0.2 - 0.1);
+    const r = (node.type === 'ip' || node.type === 'technology') ? 220 + Math.random() * 40 : 130 + Math.random() * 30;
+    node.x = cx + r * Math.cos(angle);
+    node.y = cy + r * Math.sin(angle);
+  });
+
+  // ── D3 Force Simulation (Organic cluster with intact roots) ────────────────
+  const simulation = d3.forceSimulation(nodes)
+    .alphaDecay(0.02)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+      // Child nodes (IPs attached to subdomains) sit close to their parent root
+      if (d.target && d.target.type === 'ip') return 75;
+      if (d.target && d.target.type === 'technology') return 90;
+      if (d.target && d.target.type === 'subdomain') return 140;
+      return 110;
+    }).strength(0.6))
+    .force('charge', d3.forceManyBody().strength(d => d.type === 'domain' ? -600 : -350))
+    .force('x', d3.forceX(cx).strength(0.03))
+    .force('y', d3.forceY(cy).strength(0.03))
+    .force('collide', d3.forceCollide().radius(d => {
+      if (d.type === 'domain') return 60;
+      if (d.type === 'ip') return 34;
+      return 30;
+    }).iterations(3));
+
+  // ── D3 Zoom ────────────────────────────────────────────────────────────────
+  const zoom = d3.zoom().scaleExtent([0.1,6])
+    .on('zoom', ev => zoomContainer.attr('transform', ev.transform));
+  svg.call(zoom);
+  svg.call(zoom.transform, d3.zoomIdentity.translate(width*0.04, height*0.04).scale(0.88));
+
+  const btnIn    = document.getElementById('mapper-zoom-in');
+  const btnOut   = document.getElementById('mapper-zoom-out');
+  const btnReset = document.getElementById('mapper-zoom-reset');
+  if (btnIn)    btnIn.onclick    = () => svg.transition().duration(220).call(zoom.scaleBy, 1.35);
+  if (btnOut)   btnOut.onclick   = () => svg.transition().duration(220).call(zoom.scaleBy, 1/1.35);
+  if (btnReset) btnReset.onclick = () => svg.transition().duration(320).call(zoom.transform,
+    d3.zoomIdentity.translate(width*0.04, height*0.04).scale(0.88));
+
+  // ── Edges ──────────────────────────────────────────────────────────────────
+  const linkGroup = zoomContainer.append('g').attr('class','links');
+  const linkLines = linkGroup.selectAll('line').data(links).join('line')
+    .attr('stroke', d=>{
+      if (!d.target||!d.target.type) return 'rgba(255,255,255,0.14)';
+      if (d.target.type==='ip')   return 'rgba(196,160,64,0.38)';
+      if (d.target.type==='ssl')  return 'rgba(56,106,32,0.5)';
+      if (d.target.type==='risk') return 'rgba(186,26,26,0.4)';
+      return 'rgba(255,255,255,0.18)';
+    })
+    .attr('stroke-width', 0.9)
+    .attr('stroke-dasharray', d=>{
+      if (!d.target||!d.target.type) return null;
+      if (d.target.type==='ip')   return '3 5';
+      if (d.target.type==='technology') return '2 6';
+      return null;
+    });
+
+  // Edge midpoint tick marks
+  const tickGroup = zoomContainer.append('g').attr('pointer-events','none');
+  const tickLines = tickGroup.selectAll('line').data(links).join('line')
+    .attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',1);
+
+  // ── Node groups ────────────────────────────────────────────────────────────
+  const node = zoomContainer.append('g').attr('class','nodes')
+    .selectAll('g').data(nodes).join('g')
+    .attr('class','mapper-node-svg cursor-pointer')
+    .attr('data-id', d=>d.id).attr('data-type', d=>d.type);
+
+  const shortLabel = d => { const l=d.label||d.id; return l.length>30?l.slice(0,28)+'…':l; };
+
+  // ── DOMAIN: glowing hub with orbit rings ───────────────────────────────────
+  node.filter(d=>d.type==='domain').call(g=>{
+    g.append('circle').attr('r',80).attr('fill','url(#hub-glow)').attr('opacity',0.85).attr('pointer-events','none');
+    [50,72,100].forEach((r,i)=>{
+      g.append('circle').attr('r',r).attr('fill','none')
+        .attr('stroke','rgba(186,26,26,'+(0.2-i*0.05)+')')
+        .attr('stroke-width',0.8)
+        .attr('stroke-dasharray', i%2===0?'4 4':'2 6')
+        .attr('pointer-events','none');
+    });
+    g.append('circle').attr('r',33).attr('fill','none')
+      .attr('stroke','rgba(255,255,255,0.45)').attr('stroke-width',1);
+    g.append('circle').attr('r',28).attr('fill','#0e1c28')
+      .attr('stroke','#ba1a1a').attr('stroke-width',2)
+      .attr('filter','url(#red-glow)');
+    g.append('circle').attr('r',22).attr('fill','none')
+      .attr('stroke','rgba(186,26,26,0.4)').attr('stroke-width',1);
+    g.append('text').attr('dy',7).attr('text-anchor','middle')
+      .attr('font-family','Barlow Condensed, sans-serif')
+      .attr('font-size','20px').attr('font-weight','700').attr('fill','#ffffff')
+      .attr('class','select-none pointer-events-none')
+      .text(d=>(d.label||d.id)[0].toUpperCase());
+  });
+
+  // ── SUBDOMAIN: red square + monitor icon ───────────────────────────────────
+  node.filter(d=>d.type==='subdomain').call(g=>{
+    g.append('rect').attr('x',-14).attr('y',-14).attr('width',28).attr('height',28)
+      .attr('fill','none').attr('stroke','rgba(186,26,26,0.3)').attr('stroke-width',1);
+    g.append('rect').attr('x',-11).attr('y',-11).attr('width',22).attr('height',22)
+      .attr('fill',C.sub).attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',1)
+      .attr('filter','url(#red-glow)');
+    // Monitor icon
+    g.append('rect').attr('x',-5.5).attr('y',-5.5).attr('width',11).attr('height',8)
+      .attr('fill','none').attr('stroke','rgba(255,255,255,0.75)').attr('stroke-width',1);
+    g.append('line').attr('x1',0).attr('y1',2.5).attr('x2',0).attr('y2',5.5)
+      .attr('stroke','rgba(255,255,255,0.75)').attr('stroke-width',1);
+    g.append('line').attr('x1',-3).attr('y1',5.5).attr('x2',3).attr('y2',5.5)
+      .attr('stroke','rgba(255,255,255,0.75)').attr('stroke-width',1);
+  });
+
+  // ── IP: gold diamond ───────────────────────────────────────────────────────
+  node.filter(d=>d.type==='ip').call(g=>{
+    g.append('rect').attr('x',-11).attr('y',-11).attr('width',22).attr('height',22)
+      .attr('fill',C.ip).attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',1)
+      .attr('transform','rotate(45)').attr('filter','url(#node-shadow)');
+  });
+
+  // ── TECHNOLOGY: gear circle ─────────────────────────────────────────────────
+  node.filter(d=>d.type==='technology').call(g=>{
+    g.append('circle').attr('r',13).attr('fill','#1e1a0e')
+      .attr('stroke',C.ip).attr('stroke-width',1.5).attr('filter','url(#node-shadow)');
+    g.append('circle').attr('r',6).attr('fill','none').attr('stroke',C.ip).attr('stroke-width',1);
+    for(let a=0;a<8;a++){
+      const angle=(a/8)*Math.PI*2;
+      g.append('line')
+        .attr('x1',Math.cos(angle)*6).attr('y1',Math.sin(angle)*6)
+        .attr('x2',Math.cos(angle)*9).attr('y2',Math.sin(angle)*9)
+        .attr('stroke',C.ip).attr('stroke-width',2);
+    }
+    g.append('circle').attr('r',2.5).attr('fill',C.ip);
+  });
+
+  // ── RISK: double ring + ! ──────────────────────────────────────────────────
+  node.filter(d=>d.type==='risk').call(g=>{
+    g.append('circle').attr('r',17).attr('fill','none')
+      .attr('stroke','rgba(186,26,26,0.3)').attr('stroke-width',1);
+    g.append('circle').attr('r',12).attr('fill','#1a0505')
+      .attr('stroke',C.risk).attr('stroke-width',2).attr('filter','url(#red-glow)');
+    g.append('text').attr('dy',4).attr('text-anchor','middle')
+      .attr('font-family','Barlow Condensed, sans-serif').attr('font-size','13px')
+      .attr('font-weight','700').attr('fill','#ffffff')
+      .attr('class','select-none pointer-events-none').text('!');
+  });
+
+  // ── SSL SECURED: green lock ────────────────────────────────────────────────
+  node.filter(d=>d.type==='ssl').call(g=>{
+    g.append('circle').attr('r',13).attr('fill','#061408')
+      .attr('stroke',C.ssl).attr('stroke-width',2).attr('filter','url(#green-glow)');
+    g.append('path').attr('d','M -4 0 A 4 4 0 0 1 4 0').attr('fill','none')
+      .attr('stroke','rgba(56,106,32,0.9)').attr('stroke-width',1.5);
+    g.append('rect').attr('x',-5.5).attr('y',0).attr('width',11).attr('height',8)
+      .attr('fill','none').attr('stroke','rgba(56,106,32,0.9)').attr('stroke-width',1.5);
+    g.append('circle').attr('cy',4).attr('r',1.5).attr('fill','rgba(56,106,32,0.9)');
+  });
+
+  // ── Labels ─────────────────────────────────────────────────────────────────
+  const labelOffX = d => d.type==='domain'?0 : (d.type==='ip'?16:16);
+  const labelOffY = d => d.type==='domain'?-42:4;
+  const lAnchor   = d => d.type==='domain'?'middle':'start';
+  const padX=5, padY=3;
+
+  const labelBg = node.append('rect').attr('rx',2)
+    .attr('fill','rgba(8,14,20,0.82)').attr('stroke','rgba(255,255,255,0.1)').attr('stroke-width',0.5)
+    .attr('class','select-none pointer-events-none');
+
+  const labelText = node.append('text')
+    .attr('text-anchor', d=>lAnchor(d))
+    .attr('font-family','IBM Plex Mono, monospace')
+    .attr('font-size','9.5px').attr('font-weight','500').attr('letter-spacing','0.02em')
+    .attr('fill', d=>{
+      if(d.type==='domain') return 'transparent'; // domain shows monogram not label
+      if(d.type==='ip')  return '#c4a040';
+      if(d.type==='ssl') return '#7abf60';
+      return 'rgba(255,255,255,0.8)';
+    })
+    .attr('class','select-none pointer-events-none')
+    .text(d => d.type==='domain' ? '' : shortLabel(d));
+
+  let bgSized = false;
+
+  // ── Drag ───────────────────────────────────────────────────────────────────
+  if (d3.drag) {
+    node.call(d3.drag()
+      .on('start',(ev,d)=>{ if(!ev.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
+      .on('end',  (ev,d)=>{ if(!ev.active) simulation.alphaTarget(0); if(d.type!=='domain'){d.fx=null;d.fy=null;} })
+    );
+  }
+
+  // ── Simulation tick ────────────────────────────────────────────────────────
+  simulation.on('tick', () => {
+    linkLines
+      .attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+      .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+
+    // Perpendicular midpoint tick marks
+    tickLines.each(function(d){
+      const mx=(d.source.x+d.target.x)/2, my=(d.source.y+d.target.y)/2;
+      const dx=d.target.x-d.source.x, dy=d.target.y-d.source.y;
+      const len=Math.sqrt(dx*dx+dy*dy)||1;
+      const px=-dy/len*4, py=dx/len*4;
+      d3.select(this).attr('x1',mx-px).attr('y1',my-py).attr('x2',mx+px).attr('y2',my+py);
+    });
+
+    node.attr('transform', d=>`translate(${d.x},${d.y})`);
+    labelText.attr('x',d=>labelOffX(d)).attr('y',d=>labelOffY(d));
+
+    if (!bgSized) {
+      labelText.each(function(){
+        try {
+          const b=this.getBBox();
+          if(b.width>1) d3.select(this.previousSibling)
+            .attr('x',b.x-padX).attr('y',b.y-padY)
+            .attr('width',b.width+padX*2).attr('height',b.height+padY*2);
+        } catch(_){}
+      });
+      bgSized=true;
+    }
+  });
+
+
+  setupDelegatedListener(canvas, caseFile);
+  showNodeDetails('domain', hostname, caseFile);
+}
+
+function setupDelegatedListener(canvas, caseFile) {
+  if (!canvas.dataset.listenerBound) {
+    canvas.dataset.listenerBound = 'true';
+    canvas.addEventListener('click', (e) => {
+      const nodeGroup = e.target.closest('.mapper-node-svg');
+      if (!nodeGroup) return;
+      
+      const type = nodeGroup.getAttribute('data-type');
+      const id = nodeGroup.getAttribute('data-id');
+      
+      showNodeDetails(type, id, caseFile);
+    });
+  }
+}
+
+function showNodeDetails(type, id, caseFile) {
+  const defaultDrawer = document.getElementById('mapper-details-default');
+  const detailsContent = document.getElementById('mapper-details-content');
+  if (!defaultDrawer || !detailsContent) return;
+
+  defaultDrawer.classList.add('hidden');
+  detailsContent.classList.remove('hidden');
+  detailsContent.innerHTML = '';
+
+  let html = '';
+
+  switch (type) {
+    case 'domain': {
+      html = `
+        <div class="space-y-4 font-data-mono text-xs">
+          <div class="font-bold border-b border-black pb-1 uppercase tracking-wide text-primary">Target Domain Hub</div>
+          <div class="flex flex-col gap-1.5 bg-paper-variant p-3 border border-outline-variant">
+            <div>DOMAIN: <span class="font-bold text-ink">${id}</span></div>
+            <div class="break-all">FULL URL: <span class="text-gray-600">${caseFile.url}</span></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="bg-paper-variant p-2 border border-outline-variant text-center">
+              <span class="text-[9px] text-gray-500 block">SCORE</span>
+              <span class="font-bold text-sm ${caseFile.score >= 80 ? 'text-green-600' : caseFile.score >= 50 ? 'text-yellow-600' : 'text-error'}">${caseFile.score}/100</span>
+            </div>
+            <div class="bg-paper-variant p-2 border border-outline-variant text-center">
+              <span class="text-[9px] text-gray-500 block">VERDICT</span>
+              <span class="font-bold text-[9px] tracking-wide block uppercase">${caseFile.priority.split(' ')[0]}</span>
+            </div>
+          </div>
+          <div>TIMESTAMP: <span class="text-gray-600">${caseFile.timestamp}</span></div>
+        </div>
+      `;
+      break;
+    }
+    case 'subdomain': {
+      const subInfo = caseFile.resolvedSubdomains?.find(s => `${s.subdomain}.${id.substring(s.subdomain.length + 1)}` === id || id.startsWith(s.subdomain + '.'));
+      html = `
+        <div class="space-y-4 font-data-mono text-xs">
+          <div class="font-bold border-b border-black pb-1 uppercase tracking-wide text-primary">Subdomain Node</div>
+          <div class="flex flex-col gap-1.5 bg-paper-variant p-3 border border-outline-variant">
+            <div>FQDN: <span class="font-bold text-ink">${id}</span></div>
+            <div>STATUS: <span class="text-green-600 font-bold">RESOLVED</span></div>
+            <div>IP ADDRESS: <span class="font-bold text-ink">${subInfo?.ip || 'Unknown'}</span></div>
+          </div>
+        </div>
+      `;
+      break;
+    }
+    case 'ip': {
+      const isMainIp = caseFile.registryRecord?.ip?.ip === id;
+      const host = isMainIp ? caseFile.registryRecord.ip : {};
+      const locationStr = [host.city, host.region, host.country].filter(Boolean).join(', ');
+      
+      html = `
+        <div class="space-y-4 font-data-mono text-xs">
+          <div class="font-bold border-b border-black pb-1 uppercase tracking-wide text-primary">IP Address Node</div>
+          <div class="flex flex-col gap-1.5 bg-paper-variant p-3 border border-outline-variant">
+            <div>IP: <span class="font-bold text-ink">${id}</span></div>
+            ${isMainIp ? `<div>NODE TYPE: <span class="font-bold text-gray-500">PRIMARY GATEWAY</span></div>` : `<div>NODE TYPE: <span class="font-bold text-gray-500">SUBDOMAIN ENDPOINT</span></div>`}
+          </div>
+          ${isMainIp ? `
+            <div>ISP OPERATOR: <span class="text-ink font-bold block pl-2">${host.isp || 'Unknown'}</span></div>
+            <div>AS NUMBER: <span class="text-ink font-bold block pl-2">${host.asn || 'Unknown'}</span></div>
+            <div>GEOGRAPHIC AREA: <span class="text-gray-600 block pl-2">${locationStr || 'Unknown'}</span></div>
+          ` : `
+            <p class="text-gray-400 italic text-[11px] leading-relaxed">No direct WHOIS/ASN cache available for subdomain targets.</p>
+          `}
+        </div>
+      `;
+      break;
+    }
+    case 'technology': {
+      html = `
+        <div class="space-y-4 font-data-mono text-xs">
+          <div class="font-bold border-b border-black pb-1 uppercase tracking-wide text-primary">Technology / CDN Node</div>
+          <div class="flex flex-col gap-1.5 bg-paper-variant p-3 border border-outline-variant">
+            <div>ASSET DOMAIN: <span class="font-bold text-ink">${id}</span></div>
+          </div>
+          <p class="text-gray-500 text-[11px] leading-relaxed">Script assets, style documents, or embedded frames are loaded from this domain coordinates.</p>
+        </div>
+      `;
+      break;
+    }
+    case 'risk': {
+      html = `
+        <div class="space-y-4 font-data-mono text-xs">
+          <div class="font-bold border-b border-black pb-1 uppercase tracking-wide text-primary">Risk / Vulnerability Node</div>
+          <div class="flex flex-col gap-1.5 bg-red-50 text-error p-3 border border-error/20">
+            <div class="font-bold uppercase tracking-wider">⚠️ Hazard Alert</div>
+            <div class="font-bold mt-1 text-[11px] leading-relaxed">${id.startsWith('risk-brand-') ? 'Brand Impersonation Warning' : id === 'risk-mixed' ? 'Mixed Content Warning' : 'Intel Feeds Blocklisted'}</div>
+          </div>
+          <p class="text-ink font-bold text-[11px] leading-relaxed">${id.startsWith('risk-brand-') ? 'Page metadata or visible labels claim authorization matching a protected global brand, but target URL lacks aligned certificates or signature matches.' : id === 'risk-mixed' ? 'Encrypted secure interface transmitting raw HTTP scripts or assets (violating browser mixed-content controls).' : 'Domain identifier listed directly in threat logs (URLhaus, PhishTank, or OpenPhish).'}</p>
+        </div>
+      `;
+      break;
+    }
+    case 'ssl': {
+      const ssl = caseFile.sslInfo || {};
+      html = `
+        <div class="space-y-4 font-data-mono text-xs">
+          <div class="font-bold border-b border-black pb-1 uppercase tracking-wide text-green-700">SSL Certificate Node</div>
+          <div class="flex flex-col gap-1.5 bg-green-50 text-green-800 p-3 border border-green-200">
+            <div class="font-bold uppercase tracking-wider">🔒 Valid Certificate</div>
+            <div>ISSUER: <span class="font-bold">${ssl.issuer || id}</span></div>
+            <div>SUBJECT: <span class="font-bold">${ssl.subject || 'Matched Target'}</span></div>
+            <div>EXPIRES: <span class="text-gray-600">${ssl.validTo || 'Valid'}</span></div>
+          </div>
+          <p class="text-gray-600 text-[11px] leading-relaxed">Cryptographic handshake verified with valid TLS certificate issued by ${ssl.issuer || 'trusted CA'}.</p>
+        </div>
+      `;
+      break;
+    }
+  }
+
+  detailsContent.innerHTML = html;
+}
+
+
 

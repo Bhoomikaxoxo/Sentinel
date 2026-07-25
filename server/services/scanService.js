@@ -14,6 +14,54 @@ const templateExplainer = require('./templateExplainer');
 const store = require('../db/store');
 const axios = require('axios');
 const registryService = require('./registryService');
+const tls = require('tls');
+const portScanner = require('./portScanner');
+const subdomainResolver = require('./subdomainResolver');
+
+// Helper: Establish a secure socket TLS handshake to retrieve peer certificate info
+function getSslInfo(hostname) {
+  return new Promise((resolve) => {
+    try {
+      const socket = tls.connect({
+        host: hostname,
+        port: 443,
+        servername: hostname,
+        rejectUnauthorized: false,
+        timeout: 3000
+      }, () => {
+        try {
+          const cert = socket.getPeerCertificate();
+          socket.end();
+          if (cert && cert.issuer) {
+            const issuerStr = cert.issuer.O || cert.issuer.CN || 'Unknown Authority';
+            resolve({
+              issuer: issuerStr,
+              validFrom: cert.valid_from ? new Date(cert.valid_from).toISOString() : null,
+              validTo: cert.valid_to ? new Date(cert.valid_to).toISOString() : null
+            });
+            return;
+          }
+          resolve(null);
+        } catch (e) {
+          socket.end();
+          resolve(null);
+        }
+      });
+
+      socket.on('error', () => {
+        socket.destroy();
+        resolve(null);
+      });
+
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve(null);
+      });
+    } catch (err) {
+      resolve(null);
+    }
+  });
+}
 
 exports.scanUrl = async (urlString, options = {}) => {
   const { userAgent, timeout } = options;
@@ -306,6 +354,25 @@ exports.scanUrl = async (urlString, options = {}) => {
     });
   }
 
+  // 11. Run Mapper Scans (Open Ports, Subdomains, SSL Info)
+  log(`Forensic Mapper: Scanning open ports and active subdomains...`);
+  let openPorts = [];
+  let resolvedSubdomains = [];
+  let sslInfo = null;
+
+  try {
+    const mapperResults = await Promise.allSettled([
+      portScanner.scanPorts(hostname),
+      subdomainResolver.resolveSubdomains(hostname),
+      getSslInfo(hostname)
+    ]);
+    if (mapperResults[0].status === 'fulfilled') openPorts = mapperResults[0].value || [];
+    if (mapperResults[1].status === 'fulfilled') resolvedSubdomains = mapperResults[1].value || [];
+    if (mapperResults[2].status === 'fulfilled') sslInfo = mapperResults[2].value || null;
+  } catch (err) {
+    console.error('[scanService] Failed to gather mapper metadata:', err);
+  }
+
   // Calculate connectionTrail for graph visualization
   const connectionTrail = [];
   if (headerResult.redirectChain && headerResult.redirectChain.length > 0) {
@@ -362,6 +429,9 @@ exports.scanUrl = async (urlString, options = {}) => {
     dependencies: domResult.dependencies || { scripts: [], stylesheets: [], iframes: [] },
     connectionTrail,
     visualDiffDetected,
+    openPorts,
+    resolvedSubdomains,
+    sslInfo,
 
     // PUBLIC REGISTRY RECORD
     registryRecord

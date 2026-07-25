@@ -16,6 +16,9 @@
 
   <!-- Client-side QR Code Decoder -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  
+  <!-- D3.js for physics graph rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 
   <script id="tailwind-config">
     tailwind.config = {
@@ -126,6 +129,10 @@
         <button id="nav-logs" class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
           <span class="material-symbols-outlined text-[18px]">assignment</span>
           <span>CASE LOGS</span>
+        </button>
+        <button id="nav-mapper" class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
+          <span class="material-symbols-outlined text-[18px]">hub</span>
+          <span>INTERNET MAPPER</span>
         </button>
         <button id="nav-settings" class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
           <span class="material-symbols-outlined text-[18px]">settings</span>
@@ -720,6 +727,123 @@
             <button id="settings-save-btn" class="bg-primary text-background font-data-mono text-label-sm py-3 px-6 hover:bg-primary-container shadow-md active:translate-y-[1px] transition-all">
               [SAVE CONFIGURATION]
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 6: VISUAL INTERNET MAPPER -->
+      <div id="view-section-mapper" class="space-y-gutter hidden">
+        <div class="mb-6 flex justify-between items-end">
+          <div>
+            <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">INTERNET MAPPER</h2>
+            <p class="font-body-md text-ink-variant italic">Interactive node-graph visual mapper detailing DNS, SSL, ports, and subdomain topologies.</p>
+          </div>
+          <!-- Dropdown selector for active cases -->
+          <div class="flex items-center gap-3 bg-paper p-3 border border-outline-variant shadow-sm shrink-0">
+            <span class="font-data-mono text-[11px] text-gray-500 font-bold uppercase">SELECT CASE FILE:</span>
+            <select id="mapper-case-select" class="font-data-mono text-[11px] border border-outline-variant bg-paper-variant py-1 px-2.5 outline-none cursor-pointer focus:ring-1 focus:ring-primary">
+              <option value="">AWAITING DATA...</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="mapper-empty-state" class="bg-paper border border-outline-variant p-12 text-center shadow-md relative">
+          <span class="material-symbols-outlined text-[48px] text-gray-400 mb-2">hub</span>
+          <p class="font-data-mono text-xs text-ink italic">[NO TARGET DATA COMPILED IN THE ACTIVE TERMINAL]</p>
+          <p class="font-body-md text-ink-variant mt-2">Initiate an investigation scan to visualize its network topology.</p>
+        </div>
+
+        <div id="mapper-record-content" class="grid grid-cols-12 gap-8 hidden">
+          <!-- Left Column: Mapper SVG Viewport Canvas -->
+          <div class="col-span-8 border border-outline-variant shadow-md relative overflow-hidden" style="min-height: 550px; background: #09151e;">
+            <!-- Dark grid background SVG overlay -->
+            <svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:0;" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid-minor" width="24" height="24" patternUnits="userSpaceOnUse">
+                  <path d="M 24 0 L 0 0 0 24" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+                </pattern>
+                <pattern id="grid-major" width="120" height="120" patternUnits="userSpaceOnUse">
+                  <rect width="120" height="120" fill="url(#grid-minor)"/>
+                  <path d="M 120 0 L 0 0 0 120" fill="none" stroke="rgba(255,255,255,0.09)" stroke-width="1"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid-major)"/>
+            </svg>
+
+            <!-- Canvas where D3 renders -->
+            <div id="mapper-canvas" class="absolute inset-0 w-full h-full select-none overflow-hidden" style="min-height: 550px; z-index:1;">
+              <!-- Dynamic nodes and SVGs mapped here -->
+            </div>
+
+            <!-- Zoom controls — bottom right toolbar (reference UI style) -->
+            <div class="absolute bottom-4 right-4 flex items-center gap-1 z-30 p-1.5"
+                 style="background:rgba(9,21,30,0.85); border:1px solid rgba(255,255,255,0.12); backdrop-filter:blur(8px);">
+              <button id="mapper-zoom-in"
+                class="w-7 h-7 flex items-center justify-center font-data-mono font-bold text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                title="Zoom in">+</button>
+              <button id="mapper-zoom-out"
+                class="w-7 h-7 flex items-center justify-center font-data-mono font-bold text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+                title="Zoom out">−</button>
+              <button id="mapper-zoom-reset"
+                class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Reset view">
+                <span class="material-symbols-outlined" style="font-size:15px;">center_focus_strong</span>
+              </button>
+            </div>
+
+            <!-- Floating Graph Legend — dark glass style -->
+            <div class="absolute bottom-4 left-4 font-data-mono text-[9px] uppercase tracking-wider space-y-2 z-30 select-none p-3"
+                 style="background:rgba(9,21,30,0.85); border:1px solid rgba(255,255,255,0.12); border-left:3px solid #ba1a1a; min-width:135px; backdrop-filter:blur(8px);">
+              <div class="font-bold pb-1.5 mb-1 uppercase tracking-widest text-[8px]" style="color:rgba(255,255,255,0.4); border-bottom:1px solid rgba(255,255,255,0.1);">Graph Legend</div>
+              <!-- Domain: orbit ring -->
+              <div class="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="#0e1c28" stroke="#ba1a1a" stroke-width="1.5"/><circle cx="7" cy="7" r="6.5" fill="none" stroke="rgba(186,26,26,0.5)" stroke-width="0.8" stroke-dasharray="2 2"/></svg>
+                <span style="color:rgba(255,255,255,0.65);">Domain</span>
+              </div>
+              <!-- Subdomain: red square -->
+              <div class="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" fill="#ba1a1a" stroke="rgba(255,255,255,0.2)" stroke-width="1"/></svg>
+                <span style="color:rgba(255,255,255,0.65);">Subdomain</span>
+              </div>
+              <!-- IP: gold diamond -->
+              <div class="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" fill="#c4a040" stroke="rgba(255,255,255,0.2)" stroke-width="1" transform="rotate(45 7 7)"/></svg>
+                <span style="color:rgba(255,255,255,0.65);">IP Address</span>
+              </div>
+              <!-- Technology: gear circle -->
+              <div class="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="#1e1a0e" stroke="#c4a040" stroke-width="1.2"/><circle cx="7" cy="7" r="2.5" fill="none" stroke="#c4a040" stroke-width="0.8"/><circle cx="7" cy="7" r="1" fill="#c4a040"/></svg>
+                <span style="color:rgba(255,255,255,0.65);">Technology</span>
+              </div>
+              <!-- Risk: red ring + ! -->
+              <div class="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6.5" fill="none" stroke="rgba(186,26,26,0.5)" stroke-width="0.8"/><circle cx="7" cy="7" r="4.5" fill="#1a0505" stroke="#ba1a1a" stroke-width="1.2"/><text x="7" y="9.5" text-anchor="middle" font-size="6.5" font-weight="700" fill="white" font-family="sans-serif">!</text></svg>
+                <span style="color:rgba(255,255,255,0.65);">Risk / Vuln</span>
+              </div>
+              <!-- SSL Secured: green lock -->
+              <div class="flex items-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="#061408" stroke="#386a20" stroke-width="1.5"/><path d="M 5 6 A 2 2 0 0 1 9 6" fill="none" stroke="rgba(56,106,32,0.9)" stroke-width="1"/><rect x="4.5" y="6" width="5" height="4" fill="none" stroke="rgba(56,106,32,0.9)" stroke-width="1"/></svg>
+                <span style="color:rgba(255,255,255,0.65);">SSL Secured</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Right Column: Details Drawer Panel -->
+          <div class="col-span-4 bg-paper border border-outline-variant p-6 shadow-md flex flex-col min-h-[550px]">
+            <h3 class="font-bold border-b border-black pb-2 mb-4 text-xs text-gray-800 uppercase tracking-wide flex items-center gap-2">
+              <span class="material-symbols-outlined text-[16px] text-primary">analytics</span>
+              <span>NODE TELEMETRY DATA</span>
+            </h3>
+            
+            <div id="mapper-details-drawer" class="flex-1 flex flex-col justify-center text-center">
+              <!-- Default empty state -->
+              <div id="mapper-details-default" class="text-center">
+                <span class="material-symbols-outlined text-[32px] text-gray-300 mb-2">touch_app</span>
+                <p class="font-data-mono text-[11px] text-ink-variant italic">Select a graph node to audit details.</p>
+              </div>
+              <!-- Dynamic content wrapper -->
+              <div id="mapper-details-content" class="hidden text-left space-y-4"></div>
+            </div>
           </div>
         </div>
       </div>
