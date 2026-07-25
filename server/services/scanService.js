@@ -148,6 +148,20 @@ exports.scanUrl = async (urlString, options = {}) => {
     factors.push({ id: 'dom_analysis_failed' });
   }
 
+  // 7.5 DOM Heuristics & Asset Audit
+  let domResult = { dependencies: { scripts: [], stylesheets: [], iframes: [] }, brandFlags: [] };
+  if (domHtml) {
+    try {
+      log(`Active probe: Scanning DOM structure and linked dependencies...`);
+      domResult = domAnalyzer.analyzeDom(domHtml, url);
+      if (domResult.factors && domResult.factors.length > 0) {
+        factors = factors.concat(domResult.factors);
+      }
+    } catch (domErr) {
+      console.error('[scanService] domAnalyzer.analyzeDom failed:', domErr);
+    }
+  }
+
   // 8. Wayback Machine Jaccard Similarity (Content defacement check)
   let waybackSimilarity = null;
   if (domHtml) {
@@ -279,6 +293,48 @@ exports.scanUrl = async (urlString, options = {}) => {
     });
   }
 
+  if (domResult.brandFlags && domResult.brandFlags.length > 0) {
+    domResult.brandFlags.forEach(flag => {
+      brandAnnotations.push({
+        brandName: flag.brand.toUpperCase(),
+        top: "20%",
+        left: "20%",
+        width: "60%",
+        height: "20%",
+        reason: `Suspected Brand Impersonation: ${flag.brand} on ${flag.hostname}`
+      });
+    });
+  }
+
+  // Calculate connectionTrail for graph visualization
+  const connectionTrail = [];
+  if (headerResult.redirectChain && headerResult.redirectChain.length > 0) {
+    headerResult.redirectChain.forEach((hopUrl) => {
+      let label = hopUrl;
+      try {
+        label = new URL(hopUrl).hostname || hopUrl;
+      } catch (e) {}
+      connectionTrail.push({ label, type: 'redirect' });
+    });
+  } else {
+    connectionTrail.push({ label: hostname, type: 'redirect' });
+  }
+
+  if (registryRecord && registryRecord.ip && registryRecord.ip.ip) {
+    connectionTrail.push({ label: registryRecord.ip.ip, type: 'ip' });
+    const ip = registryRecord.ip;
+    const geoParts = [ip.city, ip.region, ip.country].filter(Boolean);
+    let geoLabel = geoParts.length > 0 ? geoParts.join(', ') : '';
+    if (ip.asn) {
+      geoLabel = `ASN: ${ip.asn}${geoLabel ? ' - ' + geoLabel : ''}`;
+    }
+    if (geoLabel) {
+      connectionTrail.push({ label: geoLabel, type: 'geo' });
+    }
+  }
+
+  const visualDiffDetected = visualDiffPercent !== null && visualDiffPercent > 30;
+
   const caseFile = {
     id: caseId,
     timestamp: formattedTime,
@@ -303,6 +359,9 @@ exports.scanUrl = async (urlString, options = {}) => {
     threatCategories: uniqueCategories,
     brandAnnotations,
     userFeedback: null,
+    dependencies: domResult.dependencies || { scripts: [], stylesheets: [], iframes: [] },
+    connectionTrail,
+    visualDiffDetected,
 
     // PUBLIC REGISTRY RECORD
     registryRecord

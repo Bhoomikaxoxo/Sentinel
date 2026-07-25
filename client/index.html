@@ -328,6 +328,17 @@
                         <img id="screenshot-img" class="w-full h-full object-cover grayscale-[0.2] contrast-[1.05]" src="" alt="Page Snapshot"/>
                         <div id="screenshot-placeholder" class="text-on-surface-variant font-data-mono text-label-sm hidden">NO SNAPSHOT AVAILABLE</div>
                         
+                        <!-- Dynamic Image Comparison Slider -->
+                        <div id="image-diff-slider" class="absolute inset-0 w-full h-full hidden z-20 select-none overflow-hidden">
+                          <img id="diff-img-before" class="absolute inset-0 w-full h-full object-cover pointer-events-none" src="" alt="Previous Snapshot" />
+                          <div id="diff-img-after-wrapper" class="absolute inset-0 w-full h-full overflow-hidden" style="width: 50%;">
+                            <img id="diff-img-after" class="absolute inset-0 w-full h-full object-cover pointer-events-none max-w-none" src="" alt="Current Snapshot" style="width: 100%; height: 100%;" />
+                          </div>
+                          <div id="diff-slider-handle" class="absolute top-0 bottom-0 w-1 bg-primary cursor-ew-resize z-40 flex items-center justify-center" style="left: 50%;">
+                            <div class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg border border-outline-variant text-[10px] font-bold">↔</div>
+                          </div>
+                        </div>
+
                         <!-- Overlay highlighter box container -->
                         <div id="screenshot-overlay-container" class="absolute inset-0 w-full h-full pointer-events-none z-30"></div>
                       </div>
@@ -363,6 +374,42 @@
                       <!-- Dynamically rendered pinned evidence tags -->
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <!-- CONNECTION MAP SECTION -->
+              <div class="mt-12 pt-8 border-t border-primary/20" id="connection-map-section">
+                <h3 class="font-data-mono text-label-sm mb-6 text-primary">FORENSIC CONNECTION MAP</h3>
+                <div id="connection-map" class="relative w-full min-h-[120px] bg-paper-container paper-texture border border-outline-variant rounded p-6 overflow-x-auto flex items-center justify-center gap-12">
+                  <!-- Connection map nodes and SVG connectors rendered dynamically -->
+                </div>
+              </div>
+
+              <!-- DEPENDENCY AUDIT SECTION -->
+              <div class="mt-12 pt-8 border-t border-primary/20" id="dependency-audit-section">
+                <div class="flex items-center justify-between mb-6">
+                  <h3 class="font-data-mono text-label-sm text-primary">DEPENDENCY AUDIT</h3>
+                  <div class="flex gap-2" id="dependency-filter-container">
+                    <button class="font-data-mono text-[10px] px-2.5 py-1 border border-outline-variant bg-paper rounded transition-all active:scale-95" data-filter="all">ALL</button>
+                    <button class="font-data-mono text-[10px] px-2.5 py-1 border border-outline-variant bg-paper rounded transition-all active:scale-95" data-filter="scripts">SCRIPTS</button>
+                    <button class="font-data-mono text-[10px] px-2.5 py-1 border border-outline-variant bg-paper rounded transition-all active:scale-95" data-filter="stylesheets">STYLESHEETS</button>
+                    <button class="font-data-mono text-[10px] px-2.5 py-1 border border-outline-variant bg-paper rounded transition-all active:scale-95" data-filter="iframes">IFRAMES</button>
+                  </div>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full border-collapse text-left font-data-mono text-xs">
+                    <thead>
+                      <tr class="border-b border-primary/20 text-gray-500 uppercase tracking-wider text-[10px]">
+                        <th class="py-2.5 px-4">Resource</th>
+                        <th class="py-2.5 px-4">Domain</th>
+                        <th class="py-2.5 px-4">Category</th>
+                        <th class="py-2.5 px-4">Flags</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dependency-audit-table" class="divide-y divide-gray-200">
+                      <!-- Rendered dynamically -->
+                    </tbody>
+                  </table>
                 </div>
               </div>
 

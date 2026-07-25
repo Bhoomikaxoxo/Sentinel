@@ -9,6 +9,30 @@ if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
+// Helper: Query ip-api.com to retrieve IP Geolocation and ASN details
+async function getIpInfo(hostname) {
+  try {
+    const response = await axios.get(`http://ip-api.com/json/${encodeURIComponent(hostname)}`, {
+      timeout: 4000
+    });
+    const d = response.data;
+    if (d && d.status === 'success') {
+      return {
+        ip: d.query || null,
+        city: d.city || null,
+        region: d.regionName || null,
+        country: d.country || null,
+        isp: d.isp || null,
+        org: d.org || null,
+        asn: d.as ? d.as.split(' ')[0] : null
+      };
+    }
+  } catch (e) {
+    console.error('[registryService] Failed to fetch IP info:', e.message);
+  }
+  return null;
+}
+
 // Helper: Perform direct TLS handshake to extract active live SSL certificate
 function getLiveSslCertificate(hostname) {
   return new Promise((resolve) => {

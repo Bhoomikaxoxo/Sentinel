@@ -808,6 +808,41 @@ function displayCaseReport(caseFile) {
     redirectsCard.classList.add('hidden');
   }
 
+  // Trigger advanced forensic visualizations
+  try {
+    renderConnectionMap(caseFile);
+  } catch (err) {
+    console.error('Failed connection map render:', err);
+  }
+  
+  try {
+    renderDependencyAudit(caseFile);
+  } catch (err) {
+    console.error('Failed dependency audit render:', err);
+  }
+  
+  try {
+    const prevCaseFile = serverCases.find(sc => sc.id !== caseFile.id && sc.url === caseFile.url && sc.screenshot);
+    const prevUrl = prevCaseFile ? `data:image/png;base64,${prevCaseFile.screenshot}` : null;
+    const currentUrl = caseFile.screenshot ? `data:image/png;base64,${caseFile.screenshot}` : null;
+    
+    const sliderContainer = document.getElementById('image-diff-slider');
+    const mainImg = document.getElementById('screenshot-img');
+    
+    if (prevUrl && currentUrl && caseFile.visualDiffDetected) {
+      mainImg.classList.add('hidden');
+      sliderContainer.classList.remove('hidden');
+      initImageDiffSlider(currentUrl, prevUrl);
+    } else {
+      sliderContainer.classList.add('hidden');
+      if (caseFile.screenshot) {
+        mainImg.classList.remove('hidden');
+      }
+    }
+  } catch (err) {
+    console.error('Failed image diff slider init:', err);
+  }
+
   // 3D paper hover tilt effect
   exhibitFrame.onmousemove = (e) => {
     const rect = exhibitFrame.getBoundingClientRect();
@@ -1291,3 +1326,236 @@ function renderIntakeLog() {
     container.appendChild(row);
   });
 }
+
+// ----------------------------------------------------
+// ADVANCED FORENSIC VISUALIZATION HELPERS
+// ----------------------------------------------------
+
+function renderConnectionMap(caseFile) {
+  const container = document.getElementById('connection-map');
+  const section = document.getElementById('connection-map-section');
+  if (!container || !section) return;
+
+  if (!caseFile.connectionTrail || caseFile.connectionTrail.length === 0) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+  container.innerHTML = '';
+
+  const trail = caseFile.connectionTrail;
+  const nodeWidth = 160;
+  const nodeHeight = 80;
+  const gap = 60;
+  const totalWidth = trail.length * nodeWidth + (trail.length - 1) * gap + 40;
+  
+  container.style.justifyContent = 'flex-start';
+  container.style.position = 'relative';
+  container.style.minHeight = '140px';
+  container.style.overflowX = 'auto';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'relative flex items-center py-6';
+  wrapper.style.width = `${totalWidth}px`;
+  wrapper.style.height = '120px';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'absolute inset-0 pointer-events-none');
+  svg.setAttribute('width', String(totalWidth));
+  svg.setAttribute('height', '120');
+
+  for (let i = 0; i < trail.length - 1; i++) {
+    const startX = 20 + i * (nodeWidth + gap) + nodeWidth;
+    const endX = startX + gap;
+    const y = 60;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(startX));
+    line.setAttribute('y1', String(y));
+    line.setAttribute('x2', String(endX));
+    line.setAttribute('y2', String(y));
+    line.setAttribute('stroke', '#ba1a1a');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '4 4');
+    svg.appendChild(line);
+
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    const midX = startX + gap / 2;
+    arrow.setAttribute('points', `${midX-4},${y-4} ${midX+4},${y} ${midX-4},${y+4}`);
+    arrow.setAttribute('fill', '#ba1a1a');
+    svg.appendChild(arrow);
+  }
+  wrapper.appendChild(svg);
+
+  trail.forEach((node, i) => {
+    const x = 20 + i * (nodeWidth + gap);
+    const y = 60 - nodeHeight / 2;
+
+    const div = document.createElement('div');
+    div.className = 'absolute bg-paper border border-outline-variant shadow-sm rounded p-3 flex flex-col justify-center items-center text-center select-none hover:border-primary transition-all duration-200';
+    div.style.width = `${nodeWidth}px`;
+    div.style.height = `${nodeHeight}px`;
+    div.style.left = `${x}px`;
+    div.style.top = `${y}px`;
+
+    let badgeClass = 'bg-gray-100 text-gray-700';
+    if (node.type === 'redirect') badgeClass = 'bg-blue-100 text-blue-800';
+    if (node.type === 'ip') badgeClass = 'bg-yellow-100 text-yellow-800';
+    if (node.type === 'geo') badgeClass = 'bg-green-100 text-green-800';
+
+    div.innerHTML = `
+      <span class="font-data-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeClass} mb-1.5">${node.type}</span>
+      <span class="font-data-mono text-[10px] font-bold text-ink truncate w-full" title="${node.label}">${node.label}</span>
+    `;
+
+    wrapper.appendChild(div);
+  });
+
+  container.appendChild(wrapper);
+}
+
+let currentDependencyFilter = 'all';
+
+function renderDependencyAudit(caseFile) {
+  const tableBody = document.getElementById('dependency-audit-table');
+  const section = document.getElementById('dependency-audit-section');
+  if (!tableBody || !section) return;
+
+  if (!caseFile.dependencies) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  const filters = document.getElementById('dependency-filter-container');
+  if (filters && !filters.dataset.bound) {
+    filters.dataset.bound = 'true';
+    filters.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        filters.querySelectorAll('button').forEach(b => {
+          b.className = 'font-data-mono text-[10px] px-2.5 py-1 border border-outline-variant bg-paper rounded transition-all active:scale-95';
+        });
+        e.target.className = 'font-data-mono text-[10px] px-2.5 py-1 border border-primary bg-primary text-on-primary rounded transition-all active:scale-95';
+        
+        currentDependencyFilter = e.target.dataset.filter;
+        renderDependencyAudit(currentCase);
+      });
+    });
+  }
+
+  tableBody.innerHTML = '';
+
+  const deps = caseFile.dependencies;
+  let items = [];
+
+  if (currentDependencyFilter === 'all' || currentDependencyFilter === 'scripts') {
+    items = items.concat((deps.scripts || []).map(i => ({ ...i, type: 'script' })));
+  }
+  if (currentDependencyFilter === 'all' || currentDependencyFilter === 'stylesheets') {
+    items = items.concat((deps.stylesheets || []).map(i => ({ ...i, type: 'stylesheet' })));
+  }
+  if (currentDependencyFilter === 'all' || currentDependencyFilter === 'iframes') {
+    items = items.concat((deps.iframes || []).map(i => ({ ...i, type: 'iframe' })));
+  }
+
+  if (items.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="4" class="py-4 text-center font-data-mono text-xs text-gray-400 italic">No resources found for current filter.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  items.forEach(item => {
+    const row = document.createElement('tr');
+    row.className = 'border-b border-gray-100 hover:bg-paper-container/30 transition-colors duration-150';
+
+    let catBadge = 'bg-gray-100 text-gray-700';
+    if (item.category === 'common') catBadge = 'bg-green-100 text-green-700 border border-green-300';
+    if (item.category === 'internal') catBadge = 'bg-gray-100 text-gray-700 border border-gray-300';
+    if (item.category === 'external') catBadge = 'bg-amber-100 text-amber-700 border border-amber-300';
+
+    let flagsHtml = '';
+    if (item.mixedContent) {
+      flagsHtml += `<span class="bg-error text-on-primary text-[8px] font-bold px-1.5 py-0.5 rounded tracking-wide">MIXED CONTENT</span>`;
+    } else {
+      flagsHtml += `<span class="text-gray-400 italic text-[10px]">-</span>`;
+    }
+
+    row.innerHTML = `
+      <td class="py-3 px-4 font-bold text-ink max-w-xs truncate" title="${item.url}">${item.url}</td>
+      <td class="py-3 px-4 text-gray-600">${item.domain}</td>
+      <td class="py-3 px-4">
+        <span class="text-[9px] uppercase font-bold px-2 py-0.5 rounded ${catBadge}">${item.category}</span>
+        <span class="text-[9px] text-gray-400 font-normal ml-2">${item.type}</span>
+      </td>
+      <td class="py-3 px-4">${flagsHtml}</td>
+    `;
+    tableBody.appendChild(row);
+  });
+}
+
+let isDraggingSlider = false;
+
+function initImageDiffSlider(currentScreenshotUrl, previousScreenshotUrl) {
+  const slider = document.getElementById('image-diff-slider');
+  const handle = document.getElementById('diff-slider-handle');
+  const afterWrapper = document.getElementById('diff-img-after-wrapper');
+  const imgBefore = document.getElementById('diff-img-before');
+  const imgAfter = document.getElementById('diff-img-after');
+
+  if (!slider || !handle || !afterWrapper || !imgBefore || !imgAfter) return;
+
+  imgBefore.src = previousScreenshotUrl;
+  imgAfter.src = currentScreenshotUrl;
+
+  const onDrag = (clientX) => {
+    const rect = slider.getBoundingClientRect();
+    let x = clientX - rect.left;
+    if (x < 0) x = 0;
+    if (x > rect.width) x = rect.width;
+    const pct = (x / rect.width) * 100;
+    
+    afterWrapper.style.width = `${pct}%`;
+    handle.style.left = `${pct}%`;
+  };
+
+  const startDrag = () => {
+    isDraggingSlider = true;
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('touchmove', onTouchMove);
+    document.addEventListener('touchend', onTouchEnd);
+  };
+
+  const onMouseMove = (e) => {
+    if (!isDraggingSlider) return;
+    onDrag(e.clientX);
+  };
+
+  const onTouchMove = (e) => {
+    if (!isDraggingSlider) return;
+    if (e.touches && e.touches[0]) {
+      onDrag(e.touches[0].clientX);
+    }
+  };
+
+  const onMouseUp = () => {
+    isDraggingSlider = false;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  };
+
+  const onTouchEnd = () => {
+    isDraggingSlider = false;
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+  };
+
+  handle.addEventListener('mousedown', startDrag);
+  handle.addEventListener('touchstart', startDrag);
+}
+

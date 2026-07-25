@@ -1,4 +1,5 @@
 const cache = require('../db/cache');
+const axios = require('axios');
 
 // Helper: Extract apex domain (e.g. sub.example.co.uk -> example.co.uk)
 function getApexDomain(hostname) {
