@@ -56,3 +56,62 @@ exports.buildExplanation = (scanResult) => {
 
   return [verdictLine, ...sentences].join(" ");
 };
+
+const SIMPLIFIED_FRAGMENTS = {
+  insecure_protocol: "This website does not scramble your data, meaning someone on the same Wi-Fi could spy on what you type here.",
+  ip_hostname: "The site uses a raw number address instead of a standard name, which is very unusual for real company websites.",
+  excessive_subdomains: "The website link has too many dots and sub-sections, a trick often used to hide where the link actually goes.",
+  long_hostname: "The link name is extremely long to make it look like a complicated official page, hoping you won't spot the fake parts.",
+  many_numbers_in_domain: "The link has lots of random numbers, showing it was probably created automatically by a machine.",
+  punycode_domain: "The website uses look-alike characters from other alphabets (like a Cyrillic 'a') to mimic a famous brand name.",
+  invalid_url: "The link is broken or formatted incorrectly.",
+  typosquat_domain: "The domain name is a slight misspelling of a famous brand name, trying to trick you if you typo the name.",
+  suspicious_keyword: "The link contains sensitive words (like 'login' or 'verify') on a site that has no business asking for them.",
+  fake_brand_keyword: "The link uses a famous brand name but is not the official website, which is highly suspicious.",
+  threat_feed_match: "This website is listed on global community blacklists as dangerous or malicious.",
+  multi_feed_flagged: "Multiple security systems have confirmed and blocked this website as a known threat.",
+  newly_registered_domain: "This website was created in the last 30 days. Most scam sites are fresh because they get caught and shut down quickly.",
+  rdap_unavailable: "We couldn't check who owns this website or how old it is because the registration database is blocked or offline.",
+  dns_resolution_failure: "This website could not be resolved via DNS. It might be offline or blocked.",
+  dns_resolution_error: "We couldn't verify the website's address records.",
+  redirect_occurred: "The link instantly forwarded you to a different website, which is a trick used to hide the final destination.",
+  missing_hsts: "The site does not force secure connections, making it easier to intercept your password.",
+  missing_csp: "The website lacks modern defenses to prevent hackers from injecting harmful scripts into the page.",
+  missing_x_frame_options: "The site is vulnerable to 'clickjacking', where invisible buttons can trick you into clicking things you didn't mean to.",
+  missing_x_content_type_options: "The site doesn't specify its file types securely, which makes it easier for malware to run on your browser.",
+  connection_failed: "We couldn't connect to this website.",
+  invisible_credential_fields: "The site has hidden password or login boxes, which is a common trick used to steal credentials silently.",
+  urgency_language: "The page uses pushy language (like 'suspend', 'immediate action') to panic you into typing your details.",
+  brand_mismatch_dom: "The page claims to be a brand but is hosted on a completely unrelated website address.",
+  dom_analysis_failed: "We couldn't inspect the page's internal code structure.",
+  new_ssl_certificate: "The secure lock certificate was created in the last 7 days, showing this website is brand-new.",
+  wayback_content_divergence: "The website text looks completely different from how it used to look in historical archives, suggesting a possible hijack.",
+  visual_content_changed: "The layout of this site has changed significantly since the last check.",
+  established_brand_verified: "This is a verified official brand website, and all security systems report it is clean."
+};
+
+exports.buildSimplifiedExplanation = (scanResult) => {
+  const triggered = scanResult.triggeredRules || [];
+  const score = scanResult.score !== undefined ? scanResult.score : 100;
+
+  const sentences = triggered
+    .map(rule => SIMPLIFIED_FRAGMENTS[rule.id] || null)
+    .filter(Boolean);
+
+  let verdictLine = '';
+  if (score >= 80) {
+    verdictLine = "Overall, this site shows few warning signs. It appears safe, but standard browsing safety rules still apply.";
+  } else if (score >= 50) {
+    verdictLine = "Overall, this site shows a mix of warnings. It would be wise to be cautious when sharing any details here.";
+  } else {
+    verdictLine = "Overall, this site shows multiple strong warning signs. It is highly recommended to leave this page immediately.";
+  }
+
+  const hasUnverified = triggered.some(r => r.id === 'rdap_unavailable');
+  if (hasUnverified) {
+    sentences.push("Certain registry ownership details could not be checked.");
+  }
+
+  return [verdictLine, ...sentences].join(" ");
+};
+

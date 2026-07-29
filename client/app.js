@@ -10,6 +10,7 @@ const tabs = [
 let activeTab = 'nav-dashboard';
 let currentCase = null; // Currently selected active case file
 let serverCases = [];   // Local cache of server cases
+let isSimplifiedNotesMode = false;
 let isBatchMode = false;
 
 function initTabs() {
@@ -72,6 +73,17 @@ function initTabs() {
       }
     });
   }
+
+  // Simplify Notes Toggle Button
+  const simplifyBtn = document.getElementById('notes-simplify-btn');
+  if (simplifyBtn) {
+    simplifyBtn.addEventListener('click', () => {
+      isSimplifiedNotesMode = !isSimplifiedNotesMode;
+      if (currentCase) {
+        updateInvestigatorNotes(currentCase);
+      }
+    });
+  }
 }
 
 async function switchTab(buttonId) {
@@ -79,7 +91,7 @@ async function switchTab(buttonId) {
   tabs.forEach(tab => {
     const btn = document.getElementById(tab.buttonId);
     const section = document.getElementById(tab.sectionId);
-    
+
     if (tab.buttonId === buttonId) {
       // Active styling
       btn.className = 'sidebar-nav-active w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all';
@@ -163,7 +175,7 @@ function getSettings() {
 
 function initSettings() {
   const config = getSettings();
-  
+
   // Populate UI inputs
   document.getElementById('setting-worker-url').value = config.workerUrl;
   document.getElementById('setting-timeout').value = config.timeout;
@@ -189,7 +201,7 @@ function initSettings() {
       localStorage.setItem('sentinel_worker_url', DEFAULT_SETTINGS.workerUrl);
       localStorage.setItem('sentinel_timeout', DEFAULT_SETTINGS.timeout);
       localStorage.setItem('sentinel_user_agent', DEFAULT_SETTINGS.userAgent);
-      
+
       initSettings(); // Re-populate UI
     }
   });
@@ -213,7 +225,7 @@ function renderLiveLogs(logsList) {
     if (index < logsList.length) {
       const line = logsList[index];
       const div = document.createElement('div');
-      
+
       // Determine line styling based on log contents
       if (line.includes('ALERT:') || line.includes('failed') || line.includes('error') || line.includes('warning:')) {
         div.className = 'font-data-mono text-sm leading-6 py-0.5 text-error opacity-0 transition-opacity duration-200';
@@ -227,10 +239,10 @@ function renderLiveLogs(logsList) {
 
       div.textContent = line;
       terminal.appendChild(div);
-      
+
       // Fade-in line
       setTimeout(() => div.classList.remove('opacity-0'), 10);
-      
+
       // Scroll to bottom
       terminal.scrollTop = terminal.scrollHeight;
       index++;
@@ -253,7 +265,7 @@ function setBatchMode(active) {
   const toggleText = document.getElementById('batch-toggle-text');
   const toggleBtn = document.getElementById('batch-toggle-btn');
   const modeIcon = document.getElementById('input-mode-icon');
-  
+
   if (active) {
     urlInput.classList.add('hidden');
     batchInput.classList.remove('hidden');
@@ -285,19 +297,19 @@ document.getElementById('qr-file-input').addEventListener('change', (e) => {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = function(evt) {
+  reader.onload = function (evt) {
     const img = new Image();
-    img.onload = function() {
+    img.onload = function () {
       // Create canvas context to decode raw pixels via jsQR
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
-      
+
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imgData.data, imgData.width, imgData.height);
-      
+
       if (code && code.data) {
         document.getElementById('url-input').value = code.data;
         setBatchMode(false);
@@ -354,18 +366,18 @@ async function runSingleScan(urlInput) {
     const response = await fetch('/api/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         url: urlInput,
         userAgent: config.userAgent,
         timeout: timeoutMs
       })
     });
-    
+
     if (!response.ok) throw new Error('API Error');
     const caseFile = await response.json();
-    
+
     currentCase = caseFile;
-    
+
     // Add to serverCases local cache array
     serverCases = serverCases.filter(c => c.url !== caseFile.url);
     serverCases.unshift(caseFile);
@@ -386,7 +398,7 @@ async function runSingleScan(urlInput) {
     errDiv.className = 'font-data-mono text-sm py-1 text-error';
     errDiv.textContent = errorMsg;
     terminal.appendChild(errDiv);
-    
+
     alert("Investigation aborted. Verify that both the server and worker are running.");
     btn.textContent = originalText;
     btn.disabled = false;
@@ -420,12 +432,12 @@ async function runBatchScan(urls) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls })
     });
-    
+
     if (!response.ok) throw new Error('Batch API Error');
     const data = await response.json();
-    
+
     terminal.innerHTML += `<div class="font-data-mono text-sm text-green-400 py-1 font-bold">[${new Date().toISOString().substring(11, 19)}] Batch sweep complete. Rendering results.</div>`;
-    
+
     // Refresh cases and update stats
     await fetchCasesFromServer();
     updateDashboardStats();
@@ -441,7 +453,7 @@ async function runBatchScan(urls) {
     errDiv.className = 'font-data-mono text-sm py-1 text-error';
     errDiv.textContent = errorMsg;
     terminal.appendChild(errDiv);
-    
+
     alert("Batch scan failed.");
     switchTab('nav-dashboard');
   } finally {
@@ -455,19 +467,19 @@ async function runBatchScan(urls) {
 function renderBatchResults(results) {
   const tbody = document.getElementById('batch-results-tbody');
   tbody.innerHTML = '';
-  
+
   results.forEach(res => {
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-primary-fixed/5 transition-colors border-b border-primary/10';
-    
+
     let verdictColor = 'text-error';
     if (res.priority === 'ROUTINE') verdictColor = 'text-primary';
     else if (res.priority.includes('CAUTION')) verdictColor = 'text-verdict-caution';
-    
+
     const risks = res.reasons && res.reasons.length > 0
       ? res.reasons.slice(0, 2).join(', ') + (res.reasons.length > 2 ? '...' : '')
       : 'Clean / Low Risk';
-      
+
     tr.innerHTML = `
       <td class="p-3 font-semibold break-all text-ink">${res.url}</td>
       <td class="p-3 font-bold ${verdictColor}">${res.priority}</td>
@@ -481,10 +493,10 @@ function renderBatchResults(results) {
         ` : '<span class="text-error font-data-mono text-xs">FAILED</span>'}
       </td>
     `;
-    
+
     tbody.appendChild(tr);
   });
-  
+
   // Attach buttons listeners to open reports
   tbody.querySelectorAll('.load-batch-case-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -503,7 +515,7 @@ function renderBatchResults(results) {
       }
     });
   });
-  
+
   document.getElementById('batchResultsView').classList.remove('hidden');
 }
 
@@ -515,23 +527,23 @@ document.getElementById('batch-close-btn').addEventListener('click', () => {
 document.getElementById('watch-case-btn').addEventListener('click', async () => {
   if (!currentCase) return;
   const isNowWatched = !(currentCase.watched === true);
-  
+
   try {
     const response = await fetch(`/api/cases/${currentCase.id}/watch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ watched: isNowWatched })
     });
-    
+
     if (response.ok) {
       currentCase.watched = isNowWatched;
-      
+
       // Sync local cache
       const localIdx = serverCases.findIndex(c => c.id === currentCase.id);
       if (localIdx !== -1) {
         serverCases[localIdx].watched = isNowWatched;
       }
-      
+
       displayCaseReport(currentCase);
     }
   } catch (err) {
@@ -557,23 +569,23 @@ document.getElementById('share-report-btn').addEventListener('click', () => {
 document.getElementById('report-feedback-btn').addEventListener('click', async () => {
   if (!currentCase) return;
   const isNowInaccurate = currentCase.userFeedback === 'inaccurate' ? null : 'inaccurate';
-  
+
   try {
     const response = await fetch(`/api/cases/${currentCase.id}/feedback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ feedback: isNowInaccurate })
     });
-    
+
     if (response.ok) {
       currentCase.userFeedback = isNowInaccurate;
-      
+
       // Sync local cache
       const localIdx = serverCases.findIndex(c => c.id === currentCase.id);
       if (localIdx !== -1) {
         serverCases[localIdx].userFeedback = isNowInaccurate;
       }
-      
+
       displayCaseReport(currentCase);
       renderArchiveGrid();
     }
@@ -594,7 +606,7 @@ function displayCaseReport(caseFile) {
   document.getElementById('folder-tab-id').textContent = `CASE_${caseFile.id.substring(0, 8)}`;
   document.getElementById('case-timestamp-display').textContent = `OPENED: ${caseFile.timestamp}`;
   document.getElementById('case-priority-display').textContent = `PRIORITY: ${caseFile.priority}`;
-  
+
   // Set case review status based on accuracy feedback
   if (caseFile.userFeedback === 'inaccurate') {
     document.getElementById('case-status-display').textContent = 'STATUS: UNDER AUDIT (RE-REVIEW)';
@@ -605,7 +617,7 @@ function displayCaseReport(caseFile) {
   }
 
   // Investigator Notes
-  document.getElementById('investigator-notes').textContent = caseFile.notes;
+  updateInvestigatorNotes(caseFile);
 
   // Star watch status UI updates
   const starIcon = document.getElementById('watch-star-icon');
@@ -645,7 +657,7 @@ function displayCaseReport(caseFile) {
   // Verdict Stamp Styling (Including inline score display)
   const stampContainer = document.getElementById('verdict-stamp-container');
   const stampText = document.getElementById('verdict-stamp-text');
-  
+
   // Reset stamp animation
   stampContainer.classList.remove('animate-stamp');
   stampContainer.style.opacity = '0';
@@ -691,7 +703,7 @@ function displayCaseReport(caseFile) {
   if (caseFile.redirectChain && caseFile.redirectChain.length > 0) {
     inlineTrail.classList.remove('hidden');
     const cleanChain = caseFile.redirectChain.map(url => {
-      try { return new URL(url).hostname || url; } catch(e) { return url; }
+      try { return new URL(url).hostname || url; } catch (e) { return url; }
     }).join(' → ');
     inlineTrail.innerHTML = `<span class="text-primary font-bold uppercase">REDIRECT PATHWAY:</span> ${cleanChain}`;
   } else {
@@ -713,7 +725,7 @@ function displayCaseReport(caseFile) {
     screenshotImg.classList.remove('hidden');
     screenshotPlaceholder.classList.add('hidden');
     exhibitFrame.classList.remove('hidden');
-    
+
     // Add paper frame styling
     exhibitFrame.className = 'bg-paper p-4 border border-outline-variant shadow-md transform rotate-2 relative transition-all duration-300';
     screenshotTs.textContent = `FILE: CAPTURE_SCR_${caseFile.id.substring(0, 8)}.JPG // SANDBOXED`;
@@ -727,11 +739,11 @@ function displayCaseReport(caseFile) {
         overlay.style.left = ann.left;
         overlay.style.width = ann.width;
         overlay.style.height = ann.height;
-        
+
         const tooltip = document.createElement('div');
         tooltip.className = 'hidden group-hover/tooltip:block absolute bottom-full left-1/2 -translate-x-1/2 bg-error text-on-primary font-data-mono text-[9px] p-2 rounded whitespace-nowrap shadow-lg border border-outline-variant z-50 mb-2';
         tooltip.innerHTML = `⚠️ ${ann.reason} (${ann.brandName})`;
-        
+
         overlay.appendChild(tooltip);
         overlayContainer.appendChild(overlay);
       });
@@ -758,7 +770,7 @@ function displayCaseReport(caseFile) {
   // Render Pinned Evidence Log Tags
   const reasonsList = document.getElementById('reasons-list');
   reasonsList.innerHTML = '';
-  
+
   if (caseFile.reasons.length === 0) {
     const div = document.createElement('div');
     div.className = 'pin-tag bg-paper-container-lowest folder-texture p-3 pin-hole shadow-sm';
@@ -771,7 +783,7 @@ function displayCaseReport(caseFile) {
       div.style.transitionDelay = `${index * 80}ms`;
       div.innerHTML = `<div class="font-data-mono text-data-mono text-ink">${reason}</div>`;
       reasonsList.appendChild(div);
-      
+
       // Trigger fade in
       setTimeout(() => {
         div.classList.remove('opacity-0', 'translate-x-4');
@@ -791,18 +803,18 @@ function displayCaseReport(caseFile) {
     caseFile.redirectChain.forEach((url, i) => {
       const isTarget = (i === caseFile.redirectChain.length - 1);
       const div = document.createElement('div');
-      
+
       if (isTarget) {
         div.className = 'bg-error text-on-primary border border-outline-variant px-4 py-2 font-data-mono text-label-sm z-10 font-bold';
       } else {
         div.className = 'bg-paper-container paper-texture border border-outline-variant px-4 py-2 font-data-mono text-label-sm z-10';
       }
-      
+
       let label = url;
       try {
         label = new URL(url).hostname || url;
-      } catch (e) {}
-      
+      } catch (e) { }
+
       div.textContent = `${i === 0 ? 'START: ' : '→ '} ${label}`;
       redirectsList.appendChild(div);
     });
@@ -816,21 +828,21 @@ function displayCaseReport(caseFile) {
   } catch (err) {
     console.error('Failed connection map render:', err);
   }
-  
+
   try {
     renderDependencyAudit(caseFile);
   } catch (err) {
     console.error('Failed dependency audit render:', err);
   }
-  
+
   try {
     const prevCaseFile = serverCases.find(sc => sc.id !== caseFile.id && sc.url === caseFile.url && sc.screenshot);
     const prevUrl = prevCaseFile ? `data:image/png;base64,${prevCaseFile.screenshot}` : null;
     const currentUrl = caseFile.screenshot ? `data:image/png;base64,${caseFile.screenshot}` : null;
-    
+
     const sliderContainer = document.getElementById('image-diff-slider');
     const mainImg = document.getElementById('screenshot-img');
-    
+
     if (prevUrl && currentUrl && caseFile.visualDiffDetected) {
       mainImg.classList.add('hidden');
       sliderContainer.classList.remove('hidden');
@@ -852,7 +864,7 @@ function displayCaseReport(caseFile) {
     const y = (e.clientY - rect.top) / rect.height - 0.5;
     exhibitFrame.style.transform = `rotate(${2 + x * 4}deg) translate(${x * 8}px, ${y * 8}px)`;
   };
-  
+
   exhibitFrame.onmouseleave = () => {
     exhibitFrame.style.transform = 'rotate(2deg) translate(0px, 0px)';
   };
@@ -876,13 +888,13 @@ function renderArchiveGrid() {
   serverCases.forEach((c) => {
     const entry = document.createElement('div');
     entry.className = 'relative group cursor-pointer';
-    
+
     let verdictColor = 'text-error border-error';
     if (c.score >= 80) verdictColor = 'text-primary border-outline-variant';
     else if (c.score >= 50) verdictColor = 'text-verdict-caution border-secondary';
 
     const displayDomain = c.url.replace('https://', '').replace('http://', '').split('/')[0];
-    
+
     // Star watch tab indicators and alert notifications
     const watchIconHtml = c.watched ? `<span class="material-symbols-outlined text-[15px] text-yellow-500 ml-2" title="Watched Domain">star</span>` : '';
     const alertBorderClass = c.alert ? 'border-2 border-red-500 animate-pulse shadow-[0px_0px_10px_rgba(239,68,68,0.5)]' : 'border-outline-variant';
@@ -914,7 +926,7 @@ function renderArchiveGrid() {
         </div>
         <div class="flex flex-wrap gap-2 justify-between items-center mt-4">
           <span class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2 py-0.5">SCORE: ${c.score}/100</span>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 mr-28">
             <button class="font-data-mono text-xs border border-outline-variant px-2.5 py-1 bg-paper hover:bg-secondary-container transition-all flex items-center gap-1 view-registry-btn font-bold" title="View WHOIS / RDAP Registry Record for this case">
               <span class="material-symbols-outlined text-[14px]">description</span>
               <span>REGISTRY</span>
@@ -931,8 +943,9 @@ function renderArchiveGrid() {
           <div class="absolute -right-4 -bottom-4 w-28 h-28 border border-outline-variant bg-paper p-1 rotate-6 shadow-lg z-10 hidden sm:block">
             <div class="w-full h-full relative">
               <img class="w-full h-full object-cover grayscale-[0.2]" src="data:image/png;base64,${c.screenshot}"/>
-              <div class="absolute top-0 left-0 w-8 h-3 tape-effect rotate-[-45deg] translate-x-[-10px] translate-y-[-4px]"></div>
-              <div class="absolute top-0 right-0 w-8 h-3 tape-effect rotate-[45deg] translate-x-[10px] translate-y-[-4px]"></div>
+              <!-- Taped cross on top-left corner -->
+              <div class="absolute top-0 left-0 w-8 h-3 bg-white/60 backdrop-blur-[1px] border border-white/10 shadow-[0_1px_2px_rgba(0,0,0,0.1)] rotate-[-45deg] translate-x-[-10px] translate-y-[-4px] z-20"></div>
+              <div class="absolute top-0 left-0 w-8 h-3 bg-white/60 backdrop-blur-[1px] border border-white/10 shadow-[0_1px_2px_rgba(0,0,0,0.1)] rotate-[45deg] translate-x-[-10px] translate-y-[-4px] z-30"></div>
             </div>
           </div>
         ` : ''}
@@ -959,7 +972,7 @@ function renderArchiveGrid() {
 
 function openCaseReport(c) {
   currentCase = c;
-  
+
   // Clear monitor alert if user reviews the case
   if (c.alert) {
     c.alert = false;
@@ -968,7 +981,7 @@ function openCaseReport(c) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ watched: c.watched === true }) // implicitly clears alert in store updates
     });
-    
+
     // Silently update local store representation
     const localIdx = serverCases.findIndex(sc => sc.id === c.id);
     if (localIdx !== -1) {
@@ -1018,7 +1031,7 @@ async function refreshRegistryRecordForCase(caseFile) {
 function renderRegistryRecord() {
   const emptyState = document.getElementById('registry-empty-state');
   const content = document.getElementById('registry-record-content');
-  
+
   const activeCaseFile = currentCase || serverCases[0];
 
   // Populate active case selector dropdown in Registry Record view
@@ -1076,7 +1089,7 @@ function renderRegistryRecord() {
     const isoDate = d.toISOString().substring(0, 10);
     const diffMs = Date.now() - d.getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-    
+
     if (isExpiry) {
       const remainingDays = Math.abs(diffDays);
       return diffDays < 0 ? `${isoDate} (in ${remainingDays.toLocaleString()} days)` : `${isoDate} (expired ${diffDays.toLocaleString()} days ago)`;
@@ -1092,7 +1105,7 @@ function renderRegistryRecord() {
   const statusStr = reg.statusCodes && reg.statusCodes.length > 0
     ? reg.statusCodes.map(s => typeof s === 'string' ? s.replace(/([A-Z])/g, ' $1').toLowerCase().trim() : s).join(', ')
     : null;
-  
+
   let registrationHtml = `
     <div>
       <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">REGISTRATION</h3>
@@ -1160,10 +1173,10 @@ function renderRegistryRecord() {
   const chain = activeCaseFile.redirectChain || [activeCaseFile.url];
   const redirectsListHtml = chain.map((url, i) => {
     let hostname = url;
-    try { hostname = new URL(url).hostname || url; } catch(e) {}
-    return `[Hop #${i+1}] ${hostname}`;
+    try { hostname = new URL(url).hostname || url; } catch (e) { }
+    return `[Hop #${i + 1}] ${hostname}`;
   }).join(' → ');
-  
+
   let redirectHtml = `
     <div class="bg-surface-variant border border-outline-variant p-4 rounded mt-6">
       <h3 class="font-bold text-xs text-gray-600 mb-2 uppercase tracking-wide">REDIRECT PATHWAY</h3>
@@ -1183,7 +1196,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   initTabs();
   initSettings();
-  
+
   // Load past cases from server
   await fetchCasesFromServer();
 
@@ -1285,7 +1298,7 @@ function renderIntakeLog() {
   recent.forEach(c => {
     const dateObj = c.createdAt ? new Date(c.createdAt) : new Date();
     const timeStr = `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}:${String(dateObj.getSeconds()).padStart(2, '0')}`;
-    
+
     // Determine priority badge and coloring
     let badgeText = 'BENIGN';
     let badgeClass = 'text-verdict-green border-verdict-green';
@@ -1299,7 +1312,7 @@ function renderIntakeLog() {
 
     const row = document.createElement('div');
     row.className = 'h-11 flex items-center justify-between px-2 group hover:bg-paper-container/40 transition-colors duration-150 border-t border-outline-variant/30';
-    
+
     row.innerHTML = `
       <div class="flex items-center gap-6">
         <span class="font-data-mono text-label-sm text-on-surface-variant opacity-60">${timeStr}</span>
@@ -1351,7 +1364,7 @@ function renderConnectionMap(caseFile) {
   const nodeHeight = 80;
   const gap = 60;
   const totalWidth = trail.length * nodeWidth + (trail.length - 1) * gap + 40;
-  
+
   container.style.justifyContent = 'flex-start';
   container.style.position = 'relative';
   container.style.minHeight = '140px';
@@ -1384,7 +1397,7 @@ function renderConnectionMap(caseFile) {
 
     const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     const midX = startX + gap / 2;
-    arrow.setAttribute('points', `${midX-4},${y-4} ${midX+4},${y} ${midX-4},${y+4}`);
+    arrow.setAttribute('points', `${midX - 4},${y - 4} ${midX + 4},${y} ${midX - 4},${y + 4}`);
     arrow.setAttribute('fill', '#ba1a1a');
     svg.appendChild(arrow);
   }
@@ -1440,7 +1453,7 @@ function renderDependencyAudit(caseFile) {
           b.className = 'font-data-mono text-[10px] px-2.5 py-1 border border-outline-variant bg-paper rounded transition-all active:scale-95';
         });
         e.target.className = 'font-data-mono text-[10px] px-2.5 py-1 border border-primary bg-primary text-on-primary rounded transition-all active:scale-95';
-        
+
         currentDependencyFilter = e.target.dataset.filter;
         renderDependencyAudit(currentCase);
       });
@@ -1520,7 +1533,7 @@ function initImageDiffSlider(currentScreenshotUrl, previousScreenshotUrl) {
     if (x < 0) x = 0;
     if (x > rect.width) x = rect.width;
     const pct = (x / rect.width) * 100;
-    
+
     afterWrapper.style.width = `${pct}%`;
     handle.style.left = `${pct}%`;
   };
@@ -1602,7 +1615,7 @@ function renderInternetMap() {
 
   emptyState.classList.add('hidden');
   recordContent.classList.remove('hidden');
-  
+
   try {
     drawMapGraph(activeCaseFile);
   } catch (err) {
@@ -1630,7 +1643,7 @@ function drawMapGraph(caseFile) {
 
     // 2. Subdomains & IPs
     const uniqueIps = new Set();
-    
+
     // Add main host IP if present
     if (caseFile.registryRecord && caseFile.registryRecord.ip && caseFile.registryRecord.ip.ip) {
       const mainIp = caseFile.registryRecord.ip.ip;
@@ -1639,7 +1652,8 @@ function drawMapGraph(caseFile) {
     }
 
     if (caseFile.resolvedSubdomains) {
-      caseFile.resolvedSubdomains.forEach(sub => {
+      const subdomainsToRender = caseFile.resolvedSubdomains.slice(0, 25);
+      subdomainsToRender.forEach(sub => {
         const fullSub = `${sub.subdomain}.${hostname}`;
         if (sub.resolved) {
           nodes.push({ id: fullSub, type: 'subdomain', label: fullSub });
@@ -1754,7 +1768,7 @@ function drawMapGraph(caseFile) {
       nodes.push({ id: sslId, type: 'ssl', label: caseFile.sslInfo.issuer });
       links.push({ source: hostname, target: sslId });
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // Create D3 SVG viewport
   const svg = d3.select(canvas)
@@ -1765,59 +1779,59 @@ function drawMapGraph(caseFile) {
 
   // ── Color palette ─────────────────────────────────────────────────────────
   const C = {
-    sub:    '#ba1a1a', ip: '#c4a040', tech: '#8a7040',
-    risk:   '#ba1a1a', ssl: '#386a20',
-    white:  '#ffffff', outline: 'rgba(255,255,255,0.14)',
+    sub: '#ba1a1a', ip: '#c4a040', tech: '#8a7040',
+    risk: '#ba1a1a', ssl: '#386a20',
+    white: '#ffffff', outline: 'rgba(255,255,255,0.14)',
   };
 
   // ── SVG Defs ───────────────────────────────────────────────────────────────
   const defs = svg.append('defs');
 
   // Radial red glow gradient for domain hub
-  const hubGrad = defs.append('radialGradient').attr('id','hub-glow')
-    .attr('cx','50%').attr('cy','50%').attr('r','50%');
-  hubGrad.append('stop').attr('offset','0%')  .attr('stop-color','#ba1a1a').attr('stop-opacity',0.55);
-  hubGrad.append('stop').attr('offset','45%') .attr('stop-color','#ba1a1a').attr('stop-opacity',0.15);
-  hubGrad.append('stop').attr('offset','100%').attr('stop-color','#ba1a1a').attr('stop-opacity',0);
+  const hubGrad = defs.append('radialGradient').attr('id', 'hub-glow')
+    .attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
+  hubGrad.append('stop').attr('offset', '0%').attr('stop-color', '#ba1a1a').attr('stop-opacity', 0.55);
+  hubGrad.append('stop').attr('offset', '45%').attr('stop-color', '#ba1a1a').attr('stop-opacity', 0.15);
+  hubGrad.append('stop').attr('offset', '100%').attr('stop-color', '#ba1a1a').attr('stop-opacity', 0);
 
   // Drop shadow
-  defs.append('filter').attr('id','node-shadow')
-    .attr('x','-40%').attr('y','-40%').attr('width','180%').attr('height','180%')
-    .call(f => f.append('feDropShadow').attr('dx',0).attr('dy',2)
-      .attr('stdDeviation',4).attr('flood-color','rgba(0,0,0,0.65)'));
+  defs.append('filter').attr('id', 'node-shadow')
+    .attr('x', '-40%').attr('y', '-40%').attr('width', '180%').attr('height', '180%')
+    .call(f => f.append('feDropShadow').attr('dx', 0).attr('dy', 2)
+      .attr('stdDeviation', 4).attr('flood-color', 'rgba(0,0,0,0.65)'));
 
   // Red glow filter
-  defs.append('filter').attr('id','red-glow')
-    .attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%')
+  defs.append('filter').attr('id', 'red-glow')
+    .attr('x', '-60%').attr('y', '-60%').attr('width', '220%').attr('height', '220%')
     .call(f => {
-      f.append('feGaussianBlur').attr('stdDeviation',3).attr('result','blur');
+      f.append('feGaussianBlur').attr('stdDeviation', 3).attr('result', 'blur');
       const m = f.append('feMerge');
-      m.append('feMergeNode').attr('in','blur');
-      m.append('feMergeNode').attr('in','SourceGraphic');
+      m.append('feMergeNode').attr('in', 'blur');
+      m.append('feMergeNode').attr('in', 'SourceGraphic');
     });
 
   // Green glow filter
-  defs.append('filter').attr('id','green-glow')
-    .attr('x','-60%').attr('y','-60%').attr('width','220%').attr('height','220%')
+  defs.append('filter').attr('id', 'green-glow')
+    .attr('x', '-60%').attr('y', '-60%').attr('width', '220%').attr('height', '220%')
     .call(f => {
-      f.append('feGaussianBlur').attr('stdDeviation',3).attr('result','blur');
+      f.append('feGaussianBlur').attr('stdDeviation', 3).attr('result', 'blur');
       const m = f.append('feMerge');
-      m.append('feMergeNode').attr('in','blur');
-      m.append('feMergeNode').attr('in','SourceGraphic');
+      m.append('feMergeNode').attr('in', 'blur');
+      m.append('feMergeNode').attr('in', 'SourceGraphic');
     });
 
   // ── Star particles ─────────────────────────────────────────────────────────
-  const starG = svg.append('g').attr('pointer-events','none');
+  const starG = svg.append('g').attr('pointer-events', 'none');
   let _s = 42;
-  const _r = () => { _s = (_s*1664525+1013904223)&0xffffffff; return (_s>>>0)/4294967296; };
-  for (let i=0;i<130;i++) {
+  const _r = () => { _s = (_s * 1664525 + 1013904223) & 0xffffffff; return (_s >>> 0) / 4294967296; };
+  for (let i = 0; i < 130; i++) {
     starG.append('circle')
-      .attr('cx',_r()*width).attr('cy',_r()*height)
-      .attr('r',_r()*1.1+0.2).attr('fill','white').attr('opacity',_r()*0.3+0.06);
+      .attr('cx', _r() * width).attr('cy', _r() * height)
+      .attr('r', _r() * 1.1 + 0.2).attr('fill', 'white').attr('opacity', _r() * 0.3 + 0.06);
   }
 
   // ── Zoomable container ─────────────────────────────────────────────────────
-  const zoomContainer = svg.append('g').attr('class','zoom-container');
+  const zoomContainer = svg.append('g').attr('class', 'zoom-container');
 
   // ── Organic Force-Directed Network Layout ──────────────────────────────────
   const cx = width / 2, cy = height / 2;
@@ -1860,197 +1874,202 @@ function drawMapGraph(caseFile) {
     }).iterations(3));
 
   // ── D3 Zoom ────────────────────────────────────────────────────────────────
-  const zoom = d3.zoom().scaleExtent([0.1,6])
+  const zoom = d3.zoom().scaleExtent([0.1, 6])
     .on('zoom', ev => zoomContainer.attr('transform', ev.transform));
   svg.call(zoom);
-  svg.call(zoom.transform, d3.zoomIdentity.translate(width*0.04, height*0.04).scale(0.88));
+  svg.call(zoom.transform, d3.zoomIdentity.translate(width * 0.04, height * 0.04).scale(0.88));
 
-  const btnIn    = document.getElementById('mapper-zoom-in');
-  const btnOut   = document.getElementById('mapper-zoom-out');
+  const btnIn = document.getElementById('mapper-zoom-in');
+  const btnOut = document.getElementById('mapper-zoom-out');
   const btnReset = document.getElementById('mapper-zoom-reset');
-  if (btnIn)    btnIn.onclick    = () => svg.transition().duration(220).call(zoom.scaleBy, 1.35);
-  if (btnOut)   btnOut.onclick   = () => svg.transition().duration(220).call(zoom.scaleBy, 1/1.35);
+  if (btnIn) btnIn.onclick = () => svg.transition().duration(220).call(zoom.scaleBy, 1.35);
+  if (btnOut) btnOut.onclick = () => svg.transition().duration(220).call(zoom.scaleBy, 1 / 1.35);
   if (btnReset) btnReset.onclick = () => svg.transition().duration(320).call(zoom.transform,
-    d3.zoomIdentity.translate(width*0.04, height*0.04).scale(0.88));
+    d3.zoomIdentity.translate(width * 0.04, height * 0.04).scale(0.88));
 
   // ── Edges ──────────────────────────────────────────────────────────────────
-  const linkGroup = zoomContainer.append('g').attr('class','links');
+  const linkGroup = zoomContainer.append('g').attr('class', 'links');
   const linkLines = linkGroup.selectAll('line').data(links).join('line')
-    .attr('stroke', d=>{
-      if (!d.target||!d.target.type) return 'rgba(255,255,255,0.14)';
-      if (d.target.type==='ip')   return 'rgba(196,160,64,0.38)';
-      if (d.target.type==='ssl')  return 'rgba(56,106,32,0.5)';
-      if (d.target.type==='risk') return 'rgba(186,26,26,0.4)';
+    .attr('stroke', d => {
+      if (!d.target || !d.target.type) return 'rgba(255,255,255,0.14)';
+      if (d.target.type === 'ip') return 'rgba(196,160,64,0.38)';
+      if (d.target.type === 'ssl') return 'rgba(56,106,32,0.5)';
+      if (d.target.type === 'risk') return 'rgba(186,26,26,0.4)';
       return 'rgba(255,255,255,0.18)';
     })
     .attr('stroke-width', 0.9)
-    .attr('stroke-dasharray', d=>{
-      if (!d.target||!d.target.type) return null;
-      if (d.target.type==='ip')   return '3 5';
-      if (d.target.type==='technology') return '2 6';
+    .attr('stroke-dasharray', d => {
+      if (!d.target || !d.target.type) return null;
+      if (d.target.type === 'ip') return '3 5';
+      if (d.target.type === 'technology') return '2 6';
       return null;
     });
 
   // Edge midpoint tick marks
-  const tickGroup = zoomContainer.append('g').attr('pointer-events','none');
+  const tickGroup = zoomContainer.append('g').attr('pointer-events', 'none');
   const tickLines = tickGroup.selectAll('line').data(links).join('line')
-    .attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',1);
+    .attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 1);
 
   // ── Node groups ────────────────────────────────────────────────────────────
-  const node = zoomContainer.append('g').attr('class','nodes')
+  const node = zoomContainer.append('g').attr('class', 'nodes')
     .selectAll('g').data(nodes).join('g')
-    .attr('class','mapper-node-svg cursor-pointer')
-    .attr('data-id', d=>d.id).attr('data-type', d=>d.type);
+    .attr('class', 'mapper-node-svg cursor-pointer')
+    .attr('data-id', d => d.id).attr('data-type', d => d.type);
 
-  const shortLabel = d => { const l=d.label||d.id; return l.length>30?l.slice(0,28)+'…':l; };
+  const shortLabel = d => { const l = d.label || d.id; return l.length > 30 ? l.slice(0, 28) + '…' : l; };
 
   // ── DOMAIN: glowing hub with orbit rings ───────────────────────────────────
-  node.filter(d=>d.type==='domain').call(g=>{
-    g.append('circle').attr('r',80).attr('fill','url(#hub-glow)').attr('opacity',0.85).attr('pointer-events','none');
-    [50,72,100].forEach((r,i)=>{
-      g.append('circle').attr('r',r).attr('fill','none')
-        .attr('stroke','rgba(186,26,26,'+(0.2-i*0.05)+')')
-        .attr('stroke-width',0.8)
-        .attr('stroke-dasharray', i%2===0?'4 4':'2 6')
-        .attr('pointer-events','none');
+  node.filter(d => d.type === 'domain').call(g => {
+    g.append('circle').attr('r', 80).attr('fill', 'url(#hub-glow)').attr('opacity', 0.85).attr('pointer-events', 'none');
+    [50, 72, 100].forEach((r, i) => {
+      g.append('circle').attr('r', r).attr('fill', 'none')
+        .attr('stroke', 'rgba(186,26,26,' + (0.2 - i * 0.05) + ')')
+        .attr('stroke-width', 0.8)
+        .attr('stroke-dasharray', i % 2 === 0 ? '4 4' : '2 6')
+        .attr('pointer-events', 'none');
     });
-    g.append('circle').attr('r',33).attr('fill','none')
-      .attr('stroke','rgba(255,255,255,0.45)').attr('stroke-width',1);
-    g.append('circle').attr('r',28).attr('fill','#0e1c28')
-      .attr('stroke','#ba1a1a').attr('stroke-width',2)
-      .attr('filter','url(#red-glow)');
-    g.append('circle').attr('r',22).attr('fill','none')
-      .attr('stroke','rgba(186,26,26,0.4)').attr('stroke-width',1);
-    g.append('text').attr('dy',7).attr('text-anchor','middle')
-      .attr('font-family','Barlow Condensed, sans-serif')
-      .attr('font-size','20px').attr('font-weight','700').attr('fill','#ffffff')
-      .attr('class','select-none pointer-events-none')
-      .text(d=>(d.label||d.id)[0].toUpperCase());
+    g.append('circle').attr('r', 33).attr('fill', 'none')
+      .attr('stroke', 'rgba(255,255,255,0.45)').attr('stroke-width', 1);
+    g.append('circle').attr('r', 28).attr('fill', '#0e1c28')
+      .attr('stroke', '#ba1a1a').attr('stroke-width', 2)
+      .attr('filter', 'url(#red-glow)');
+    g.append('circle').attr('r', 22).attr('fill', 'none')
+      .attr('stroke', 'rgba(186,26,26,0.4)').attr('stroke-width', 1);
+    g.append('text').attr('dy', 7).attr('text-anchor', 'middle')
+      .attr('font-family', 'Barlow Condensed, sans-serif')
+      .attr('font-size', '20px').attr('font-weight', '700').attr('fill', '#ffffff')
+      .attr('class', 'select-none pointer-events-none')
+      .text(d => (d.label || d.id)[0].toUpperCase());
   });
 
   // ── SUBDOMAIN: red square + monitor icon ───────────────────────────────────
-  node.filter(d=>d.type==='subdomain').call(g=>{
-    g.append('rect').attr('x',-14).attr('y',-14).attr('width',28).attr('height',28)
-      .attr('fill','none').attr('stroke','rgba(186,26,26,0.3)').attr('stroke-width',1);
-    g.append('rect').attr('x',-11).attr('y',-11).attr('width',22).attr('height',22)
-      .attr('fill',C.sub).attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',1)
-      .attr('filter','url(#red-glow)');
+  node.filter(d => d.type === 'subdomain').call(g => {
+    g.append('rect').attr('x', -14).attr('y', -14).attr('width', 28).attr('height', 28)
+      .attr('fill', 'none').attr('stroke', 'rgba(186,26,26,0.3)').attr('stroke-width', 1);
+    g.append('rect').attr('x', -11).attr('y', -11).attr('width', 22).attr('height', 22)
+      .attr('fill', C.sub).attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 1)
+      .attr('filter', 'url(#red-glow)');
     // Monitor icon
-    g.append('rect').attr('x',-5.5).attr('y',-5.5).attr('width',11).attr('height',8)
-      .attr('fill','none').attr('stroke','rgba(255,255,255,0.75)').attr('stroke-width',1);
-    g.append('line').attr('x1',0).attr('y1',2.5).attr('x2',0).attr('y2',5.5)
-      .attr('stroke','rgba(255,255,255,0.75)').attr('stroke-width',1);
-    g.append('line').attr('x1',-3).attr('y1',5.5).attr('x2',3).attr('y2',5.5)
-      .attr('stroke','rgba(255,255,255,0.75)').attr('stroke-width',1);
+    g.append('rect').attr('x', -5.5).attr('y', -5.5).attr('width', 11).attr('height', 8)
+      .attr('fill', 'none').attr('stroke', 'rgba(255,255,255,0.75)').attr('stroke-width', 1);
+    g.append('line').attr('x1', 0).attr('y1', 2.5).attr('x2', 0).attr('y2', 5.5)
+      .attr('stroke', 'rgba(255,255,255,0.75)').attr('stroke-width', 1);
+    g.append('line').attr('x1', -3).attr('y1', 5.5).attr('x2', 3).attr('y2', 5.5)
+      .attr('stroke', 'rgba(255,255,255,0.75)').attr('stroke-width', 1);
   });
 
   // ── IP: gold diamond ───────────────────────────────────────────────────────
-  node.filter(d=>d.type==='ip').call(g=>{
-    g.append('rect').attr('x',-11).attr('y',-11).attr('width',22).attr('height',22)
-      .attr('fill',C.ip).attr('stroke','rgba(255,255,255,0.2)').attr('stroke-width',1)
-      .attr('transform','rotate(45)').attr('filter','url(#node-shadow)');
+  node.filter(d => d.type === 'ip').call(g => {
+    g.append('rect').attr('x', -11).attr('y', -11).attr('width', 22).attr('height', 22)
+      .attr('fill', C.ip).attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 1)
+      .attr('transform', 'rotate(45)').attr('filter', 'url(#node-shadow)');
   });
 
   // ── TECHNOLOGY: gear circle ─────────────────────────────────────────────────
-  node.filter(d=>d.type==='technology').call(g=>{
-    g.append('circle').attr('r',13).attr('fill','#1e1a0e')
-      .attr('stroke',C.ip).attr('stroke-width',1.5).attr('filter','url(#node-shadow)');
-    g.append('circle').attr('r',6).attr('fill','none').attr('stroke',C.ip).attr('stroke-width',1);
-    for(let a=0;a<8;a++){
-      const angle=(a/8)*Math.PI*2;
+  node.filter(d => d.type === 'technology').call(g => {
+    g.append('circle').attr('r', 13).attr('fill', '#1e1a0e')
+      .attr('stroke', C.ip).attr('stroke-width', 1.5).attr('filter', 'url(#node-shadow)');
+    g.append('circle').attr('r', 6).attr('fill', 'none').attr('stroke', C.ip).attr('stroke-width', 1);
+    for (let a = 0; a < 8; a++) {
+      const angle = (a / 8) * Math.PI * 2;
       g.append('line')
-        .attr('x1',Math.cos(angle)*6).attr('y1',Math.sin(angle)*6)
-        .attr('x2',Math.cos(angle)*9).attr('y2',Math.sin(angle)*9)
-        .attr('stroke',C.ip).attr('stroke-width',2);
+        .attr('x1', Math.cos(angle) * 6).attr('y1', Math.sin(angle) * 6)
+        .attr('x2', Math.cos(angle) * 9).attr('y2', Math.sin(angle) * 9)
+        .attr('stroke', C.ip).attr('stroke-width', 2);
     }
-    g.append('circle').attr('r',2.5).attr('fill',C.ip);
+    g.append('circle').attr('r', 2.5).attr('fill', C.ip);
   });
 
   // ── RISK: double ring + ! ──────────────────────────────────────────────────
-  node.filter(d=>d.type==='risk').call(g=>{
-    g.append('circle').attr('r',17).attr('fill','none')
-      .attr('stroke','rgba(186,26,26,0.3)').attr('stroke-width',1);
-    g.append('circle').attr('r',12).attr('fill','#1a0505')
-      .attr('stroke',C.risk).attr('stroke-width',2).attr('filter','url(#red-glow)');
-    g.append('text').attr('dy',4).attr('text-anchor','middle')
-      .attr('font-family','Barlow Condensed, sans-serif').attr('font-size','13px')
-      .attr('font-weight','700').attr('fill','#ffffff')
-      .attr('class','select-none pointer-events-none').text('!');
+  node.filter(d => d.type === 'risk').call(g => {
+    g.append('circle').attr('r', 17).attr('fill', 'none')
+      .attr('stroke', 'rgba(186,26,26,0.3)').attr('stroke-width', 1);
+    g.append('circle').attr('r', 12).attr('fill', '#1a0505')
+      .attr('stroke', C.risk).attr('stroke-width', 2).attr('filter', 'url(#red-glow)');
+    g.append('text').attr('dy', 4).attr('text-anchor', 'middle')
+      .attr('font-family', 'Barlow Condensed, sans-serif').attr('font-size', '13px')
+      .attr('font-weight', '700').attr('fill', '#ffffff')
+      .attr('class', 'select-none pointer-events-none').text('!');
   });
 
   // ── SSL SECURED: green lock ────────────────────────────────────────────────
-  node.filter(d=>d.type==='ssl').call(g=>{
-    g.append('circle').attr('r',13).attr('fill','#061408')
-      .attr('stroke',C.ssl).attr('stroke-width',2).attr('filter','url(#green-glow)');
-    g.append('path').attr('d','M -4 0 A 4 4 0 0 1 4 0').attr('fill','none')
-      .attr('stroke','rgba(56,106,32,0.9)').attr('stroke-width',1.5);
-    g.append('rect').attr('x',-5.5).attr('y',0).attr('width',11).attr('height',8)
-      .attr('fill','none').attr('stroke','rgba(56,106,32,0.9)').attr('stroke-width',1.5);
-    g.append('circle').attr('cy',4).attr('r',1.5).attr('fill','rgba(56,106,32,0.9)');
+  node.filter(d => d.type === 'ssl').call(g => {
+    g.append('circle').attr('r', 13).attr('fill', '#061408')
+      .attr('stroke', C.ssl).attr('stroke-width', 2).attr('filter', 'url(#green-glow)');
+    g.append('path').attr('d', 'M -4 0 A 4 4 0 0 1 4 0').attr('fill', 'none')
+      .attr('stroke', 'rgba(56,106,32,0.9)').attr('stroke-width', 1.5);
+    g.append('rect').attr('x', -5.5).attr('y', 0).attr('width', 11).attr('height', 8)
+      .attr('fill', 'none').attr('stroke', 'rgba(56,106,32,0.9)').attr('stroke-width', 1.5);
+    g.append('circle').attr('cy', 4).attr('r', 1.5).attr('fill', 'rgba(56,106,32,0.9)');
   });
 
   // ── Labels ─────────────────────────────────────────────────────────────────
-  const labelOffX = d => d.type==='domain'?0 : (d.type==='ip'?16:16);
-  const labelOffY = d => d.type==='domain'?-42:4;
-  const lAnchor   = d => d.type==='domain'?'middle':'start';
-  const padX=5, padY=3;
+  const labelOffX = d => d.type === 'domain' ? 0 : (d.type === 'ip' ? 16 : 16);
+  const labelOffY = d => d.type === 'domain' ? -42 : 4;
+  const lAnchor = d => d.type === 'domain' ? 'middle' : 'start';
+  const padX = 5, padY = 3;
 
-  const labelBg = node.append('rect').attr('rx',2)
-    .attr('fill','rgba(8,14,20,0.82)').attr('stroke','rgba(255,255,255,0.1)').attr('stroke-width',0.5)
-    .attr('class','select-none pointer-events-none');
+  const labelBg = node.append('rect').attr('rx', 2)
+    .attr('fill', 'rgba(8,14,20,0.82)').attr('stroke', 'rgba(255,255,255,0.1)').attr('stroke-width', 0.5)
+    .attr('class', 'select-none pointer-events-none');
 
   const labelText = node.append('text')
-    .attr('text-anchor', d=>lAnchor(d))
-    .attr('font-family','IBM Plex Mono, monospace')
-    .attr('font-size','9.5px').attr('font-weight','500').attr('letter-spacing','0.02em')
-    .attr('fill', d=>{
-      if(d.type==='domain') return 'transparent'; // domain shows monogram not label
-      if(d.type==='ip')  return '#c4a040';
-      if(d.type==='ssl') return '#7abf60';
+    .attr('text-anchor', d => lAnchor(d))
+    .attr('font-family', 'IBM Plex Mono, monospace')
+    .attr('font-size', '9.5px').attr('font-weight', '500').attr('letter-spacing', '0.02em')
+    .attr('fill', d => {
+      if (d.type === 'domain') return 'transparent'; // domain shows monogram not label
+      if (d.type === 'ip') return '#c4a040';
+      if (d.type === 'ssl') return '#7abf60';
       return 'rgba(255,255,255,0.8)';
     })
-    .attr('class','select-none pointer-events-none')
-    .text(d => d.type==='domain' ? '' : shortLabel(d));
+    .attr('class', 'select-none pointer-events-none')
+    .text(d => d.type === 'domain' ? '' : shortLabel(d));
 
   let bgSized = false;
 
   // ── Drag ───────────────────────────────────────────────────────────────────
   if (d3.drag) {
     node.call(d3.drag()
-      .on('start',(ev,d)=>{ if(!ev.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
-      .on('drag', (ev,d)=>{ d.fx=ev.x; d.fy=ev.y; })
-      .on('end',  (ev,d)=>{ if(!ev.active) simulation.alphaTarget(0); if(d.type!=='domain'){d.fx=null;d.fy=null;} })
+      .on('start', (ev, d) => { if (!ev.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
+      .on('end', (ev, d) => { if (!ev.active) simulation.alphaTarget(0); if (d.type !== 'domain') { d.fx = null; d.fy = null; } })
     );
   }
 
   // ── Simulation tick ────────────────────────────────────────────────────────
   simulation.on('tick', () => {
     linkLines
-      .attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
-      .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+      .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
 
     // Perpendicular midpoint tick marks
-    tickLines.each(function(d){
-      const mx=(d.source.x+d.target.x)/2, my=(d.source.y+d.target.y)/2;
-      const dx=d.target.x-d.source.x, dy=d.target.y-d.source.y;
-      const len=Math.sqrt(dx*dx+dy*dy)||1;
-      const px=-dy/len*4, py=dx/len*4;
-      d3.select(this).attr('x1',mx-px).attr('y1',my-py).attr('x2',mx+px).attr('y2',my+py);
+    tickLines.each(function (d) {
+      if (!d.source || !d.target) return;
+      const mx = (d.source.x + d.target.x) / 2, my = (d.source.y + d.target.y) / 2;
+      const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const px = -dy / len * 4, py = dx / len * 4;
+
+      this.setAttribute('x1', String(mx - px));
+      this.setAttribute('y1', String(my - py));
+      this.setAttribute('x2', String(mx + px));
+      this.setAttribute('y2', String(my + py));
     });
 
-    node.attr('transform', d=>`translate(${d.x},${d.y})`);
-    labelText.attr('x',d=>labelOffX(d)).attr('y',d=>labelOffY(d));
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+    labelText.attr('x', d => labelOffX(d)).attr('y', d => labelOffY(d));
 
     if (!bgSized) {
-      labelText.each(function(){
+      labelText.each(function () {
         try {
-          const b=this.getBBox();
-          if(b.width>1) d3.select(this.previousSibling)
-            .attr('x',b.x-padX).attr('y',b.y-padY)
-            .attr('width',b.width+padX*2).attr('height',b.height+padY*2);
-        } catch(_){}
+          const b = this.getBBox();
+          if (b.width > 1) d3.select(this.previousSibling)
+            .attr('x', b.x - padX).attr('y', b.y - padY)
+            .attr('width', b.width + padX * 2).attr('height', b.height + padY * 2);
+        } catch (_) { }
       });
-      bgSized=true;
+      bgSized = true;
     }
   });
 
@@ -2065,10 +2084,10 @@ function setupDelegatedListener(canvas, caseFile) {
     canvas.addEventListener('click', (e) => {
       const nodeGroup = e.target.closest('.mapper-node-svg');
       if (!nodeGroup) return;
-      
+
       const type = nodeGroup.getAttribute('data-type');
       const id = nodeGroup.getAttribute('data-id');
-      
+
       showNodeDetails(type, id, caseFile);
     });
   }
@@ -2127,7 +2146,7 @@ function showNodeDetails(type, id, caseFile) {
       const isMainIp = caseFile.registryRecord?.ip?.ip === id;
       const host = isMainIp ? caseFile.registryRecord.ip : {};
       const locationStr = [host.city, host.region, host.country].filter(Boolean).join(', ');
-      
+
       html = `
         <div class="space-y-4 font-data-mono text-xs">
           <div class="font-bold border-b border-black pb-1 uppercase tracking-wide text-primary">IP Address Node</div>
@@ -2191,6 +2210,85 @@ function showNodeDetails(type, id, caseFile) {
 
   detailsContent.innerHTML = html;
 }
+
+const FALLBACK_SIMPLIFIED_MAPPING = {
+  "Connection is not secure (HTTP instead of HTTPS).": "This website does not scramble your data, meaning someone on the same Wi-Fi could spy on what you type here.",
+  "URL uses an IP address instead of a domain name.": "The site uses a raw number address instead of a standard name, which is very unusual for real company websites.",
+  "Domain has an unusually high number of subdomains.": "The website link has too many dots and sub-sections, a trick often used to hide where the link actually goes.",
+  "Domain name is suspiciously long.": "The link name is extremely long to make it look like a complicated official page, hoping you won't spot the fake parts.",
+  "Domain contains many numbers, typical of auto-generated domains.": "The link has lots of random numbers, showing it was probably created automatically by a machine.",
+  "Domain uses special characters (Punycode) often used in homograph attacks.": "The website uses look-alike characters from other alphabets (like a Cyrillic 'a') to mimic a famous brand name.",
+  "URL could not be parsed correctly.": "The link is broken or formatted incorrectly.",
+  "Domain is highly similar to a major brand (typosquatting).": "The domain name is a slight misspelling of a famous brand name, trying to trick you if you typo the name.",
+  "URL contains a suspicious keyword often used in phishing.": "The link contains sensitive words (like 'login' or 'verify') on a site that has no business asking for them.",
+  "URL contains a brand name but is not the official domain.": "The link uses a famous brand name but is not the official website, which is highly suspicious.",
+  "Community threat-intelligence feeds flagged this URL/domain as malicious.": "This website is listed on global community blacklists as dangerous or malicious.",
+  "URL/domain matched multiple community threat feeds (corroborated malicious signal).": "Multiple security systems have confirmed and blocked this website as a known threat.",
+  "Domain was registered within the last 30 days.": "This website was created in the last 30 days. Most scam sites are fresh because they get caught and shut down quickly.",
+  "Domain registration details could not be verified (WHOIS/RDAP lookup failed).": "We couldn't check who owns this website or how old it is because the registration database is blocked or offline.",
+  "The SSL certificate was issued very recently (within the last 7 days).": "The secure lock certificate was created in the last 7 days, showing this website is brand-new.",
+  "Recently reissued certificate on a pre-existing domain — possible takeover or repurposing.": "Recently reissued certificate on a pre-existing domain — possible takeover or repurposing.",
+  "Page content differs significantly from its historic Wayback Machine archive (possible redirect hijack).": "The website text looks completely different from how it used to look in historical archives, suggesting a possible hijack.",
+  "Page layout or visual contents changed significantly from its previous audit.": "The layout of this site has changed significantly since the last check.",
+  "Domain could not be resolved via DNS.": "This website could not be resolved via DNS. It might be offline or blocked.",
+  "DNS resolution check failed.": "We couldn't verify the website's address records.",
+  "URL redirected to a different location.": "The link instantly forwarded you to a different website, which is a trick used to hide the final destination.",
+  "Missing Strict-Transport-Security header.": "The site does not force secure connections, making it easier to intercept your password.",
+  "Missing Content-Security-Policy header.": "The website lacks modern defenses to prevent hackers from injecting harmful scripts into the page.",
+  "Missing X-Frame-Options header (vulnerable to clickjacking).": "The site is vulnerable to 'clickjacking', where invisible buttons can trick you into clicking things you didn't mean to.",
+  "Missing X-Content-Type-Options header.": "The site doesn't specify its file types securely, which makes it easier for malware to run on your browser.",
+  "Failed to connect to the target URL.": "We couldn't connect to this website.",
+  "Page contains hidden forms or password fields.": "The site has hidden password or login boxes, which is a common trick used to steal credentials silently.",
+  "Page uses urgency language typical of social engineering.": "The page uses pushy language (like 'suspend', 'immediate action') to panic you into typing your details.",
+  "Page claims to be a brand but the domain does not match.": "The page claims to be a brand but is hosted on a completely unrelated website address.",
+  "Verified established global brand domain.": "This is a verified official brand website, and all security systems report it is clean.",
+  "Failed to parse page DOM.": "We couldn't inspect the page's internal code structure."
+};
+
+function generateSimplifiedNotesFallback(caseFile) {
+  const reasons = caseFile.reasons || [];
+  const sentences = reasons.map(r => {
+    const matchKey = Object.keys(FALLBACK_SIMPLIFIED_MAPPING).find(key => r.startsWith(key));
+    return matchKey ? FALLBACK_SIMPLIFIED_MAPPING[matchKey] : null;
+  }).filter(Boolean);
+
+  let verdictLine = '';
+  if (caseFile.score >= 80) {
+    verdictLine = "Overall, this site shows few warning signs. It appears safe, but standard browsing safety rules still apply.";
+  } else if (caseFile.score >= 50) {
+    verdictLine = "Overall, this site shows a mix of warnings. It would be wise to be cautious when sharing any details here.";
+  } else {
+    verdictLine = "Overall, this site shows multiple strong warning signs. It is highly recommended to leave this page immediately.";
+  }
+
+  const hasUnverified = reasons.some(r => r.includes('WHOIS/RDAP lookup failed') || r.includes('could not be verified'));
+  if (hasUnverified) {
+    sentences.push("Certain registry ownership details could not be checked.");
+  }
+
+  return [verdictLine, ...sentences].join(" ");
+}
+
+function updateInvestigatorNotes(caseFile) {
+  const notesText = document.getElementById('investigator-notes');
+  const simplifyBtn = document.getElementById('notes-simplify-btn');
+  if (!notesText || !simplifyBtn) return;
+
+  if (isSimplifiedNotesMode) {
+    simplifyBtn.textContent = '[TECHNICAL NOTES]';
+    simplifyBtn.classList.add('bg-primary', 'text-on-primary');
+    let simp = caseFile.simplifiedNotes;
+    if (!simp) {
+      simp = generateSimplifiedNotesFallback(caseFile);
+    }
+    notesText.textContent = simp;
+  } else {
+    simplifyBtn.textContent = '[SIMPLIFY NOTES]';
+    simplifyBtn.classList.remove('bg-primary', 'text-on-primary');
+    notesText.textContent = caseFile.notes;
+  }
+}
+
 
 
 

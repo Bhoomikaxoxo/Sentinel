@@ -164,7 +164,23 @@ async function resolveSubdomains(rootDomain) {
   const allResults = await resolveInBatches(fqdnList, cleanDomain, 8);
 
   // 5. Return resolved ones first, then a handful of notable unresolved ones
-  const resolved = allResults.filter(r => r.resolved);
+  let resolved = allResults.filter(r => r.resolved);
+
+  // Wildcard DNS detection: if we have a lot of subdomains, check if they map to the same IP
+  if (resolved.length > 20) {
+    const ipCounts = {};
+    resolved.forEach(r => {
+      if (r.ip) {
+        ipCounts[r.ip] = (ipCounts[r.ip] || 0) + 1;
+      }
+    });
+    const maxCount = Math.max(...Object.values(ipCounts), 0);
+    if (maxCount > resolved.length * 0.7) {
+      console.log(`[subdomainResolver] Wildcard DNS detected for ${cleanDomain}. Capping resolved subdomains to prevent UI lag.`);
+      resolved = resolved.slice(0, 20);
+    }
+  }
+
   const unresolved = allResults.filter(r => !r.resolved).slice(0, 10);
   const final = resolved.length > 0 ? resolved : [...resolved, ...unresolved];
 

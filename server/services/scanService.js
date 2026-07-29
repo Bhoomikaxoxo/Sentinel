@@ -267,6 +267,11 @@ exports.scanUrl = async (urlString, options = {}) => {
     });
   }
 
+  const simplifiedNotes = templateExplainer.buildSimplifiedExplanation({
+    score: scoreResult.score,
+    triggeredRules: factors
+  });
+
   let priority = 'ROUTINE';
   if (scoreResult.score >= 80) {
     priority = 'ROUTINE';
@@ -412,6 +417,7 @@ exports.scanUrl = async (urlString, options = {}) => {
     redirectChain: headerResult.redirectChain || [urlString],
     priority: priority,
     notes: notes,
+    simplifiedNotes: simplifiedNotes,
     logs: logs,
     watched: isWatched,
     visualDiffPercent,

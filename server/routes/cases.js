@@ -106,6 +106,14 @@ router.get('/report/:id', (req, res) => {
       return res.status(404).send('<h1>Case File Not Found</h1>');
     }
 
+    let simplifiedNotes = caseFile.simplifiedNotes;
+    if (!simplifiedNotes) {
+      const templateExplainer = require('../services/templateExplainer');
+      simplifiedNotes = templateExplainer.buildSimplifiedExplanation(caseFile);
+    }
+    const techNotesBase64 = Buffer.from(caseFile.notes || '').toString('base64');
+    const simpNotesBase64 = Buffer.from(simplifiedNotes || '').toString('base64');
+
     let stampColor = 'border-green-700 text-green-700';
     let stampText = 'CLEARED';
     if (caseFile.score < 50) {
@@ -366,8 +374,13 @@ router.get('/report/:id', (req, res) => {
 
 
         <div class="bg-[#f0e4cc] p-6 border border-amber-900/10 rounded shadow-inner">
-          <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-amber-900/20 pb-1 mb-3">INVESTIGATOR NOTES</h3>
-          <p class="text-amber-950 leading-relaxed text-lg italic">
+          <div class="flex justify-between items-center border-b border-amber-900/20 pb-1 mb-3">
+            <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-amber-900">INVESTIGATOR NOTES</h3>
+            <button id="report-notes-toggle" onclick="toggleReportNotes()" class="font-mono text-[9px] uppercase border border-amber-900/40 px-2 py-0.5 rounded hover:bg-amber-900/5 select-none font-bold cursor-pointer">
+              [Simplify]
+            </button>
+          </div>
+          <p id="report-notes-text" class="text-amber-950 leading-relaxed text-lg italic">
             "${caseFile.notes}"
           </p>
         </div>
@@ -382,6 +395,26 @@ router.get('/report/:id', (req, res) => {
       <span>SCORE: ${caseFile.score}/100</span>
     </div>
   </div>
+  <script>
+    let isSimplified = false;
+    const techNotes = atob("${techNotesBase64}");
+    const simpNotes = atob("${simpNotesBase64}");
+
+    function toggleReportNotes() {
+      isSimplified = !isSimplified;
+      const txt = document.getElementById('report-notes-text');
+      const btn = document.getElementById('report-notes-toggle');
+      if (isSimplified) {
+        txt.textContent = '"' + simpNotes + '"';
+        btn.textContent = '[Technical]';
+        btn.classList.add('bg-amber-950', 'text-amber-50');
+      } else {
+        txt.textContent = '"' + techNotes + '"';
+        btn.textContent = '[Simplify]';
+        btn.classList.remove('bg-amber-950', 'text-amber-50');
+      }
+    }
+  </script>
 </body>
 </html>
     `;

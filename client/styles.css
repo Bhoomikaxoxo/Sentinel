@@ -1252,3 +1252,9 @@ main {
   animation: signal-blink 6s ease-in-out infinite;
 }
 
+/* GPU Accelerated Node Map Rendering */
+.mapper-node-svg {
+  will-change: transform;
+}
+
+
