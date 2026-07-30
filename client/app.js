@@ -1433,8 +1433,26 @@ function updateDashboardStats() {
 
   // Update current session timestamp header
   const now = new Date();
-  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} HRS // ENCRYPTED SESSION`;
+  const hours = now.getHours();
+  const timeStr = `${String(hours).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} HRS // ENCRYPTED SESSION`;
   document.getElementById('briefing-time-display').textContent = timeStr;
+
+  // Determine dynamic time-of-day briefing title
+  let greetingTitle = 'Morning Briefing.';
+  if (hours >= 5 && hours < 12) {
+    greetingTitle = 'Morning Briefing.';
+  } else if (hours >= 12 && hours < 17) {
+    greetingTitle = 'Afternoon Briefing.';
+  } else if (hours >= 17 && hours < 22) {
+    greetingTitle = 'Evening Briefing.';
+  } else {
+    greetingTitle = 'Night Briefing.';
+  }
+
+  const titleEl = document.getElementById('briefing-title-display');
+  if (titleEl) {
+    titleEl.textContent = greetingTitle;
+  }
 
   // Update log reference
   const logRefStr = `REF: LOG-${now.getFullYear()}-${now.toLocaleString('default', { month: 'short' }).toUpperCase()}-${String(now.getDate()).padStart(2, '0')}`;
