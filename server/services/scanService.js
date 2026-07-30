@@ -123,8 +123,10 @@ exports.scanUrl = async (urlString, options = {}) => {
     : Promise.reject(new Error('No external render worker configured'));
 
   // thum.io screenshot API — runs in parallel, free, no API key needed
+  // thum.io requires the raw target URL appended directly (NOT percent-encoded)
+  const targetUrl = url.startsWith('http') ? url : `https://${url}`;
   const screenshotApiPromise = axios.get(
-    `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`,
+    `https://image.thum.io/get/width/1280/crop/900/noanimate/${targetUrl}`,
     { responseType: 'arraybuffer', timeout: 7000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)' } }
   );
 
