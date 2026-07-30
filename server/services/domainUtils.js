@@ -1,10 +1,13 @@
 const TOP_DOMAINS = [
   'google.com', 'youtube.com', 'netflix.com', 'amazon.com', 'apple.com', 'microsoft.com',
   'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'linkedin.com', 'github.com',
-  'wikipedia.org', 'paypal.com', 'chase.com', 'bankofamerica.com', 'wellsfargo.com',
-  'cisco.com', 'adobe.com', 'cloudflare.com', 'godaddy.com', 'reddit.com', 'pinterest.com',
-  'twitch.tv', 'zoom.us', 'salesforce.com', 'spotify.com', 'dropbox.com', 'ebay.com',
-  'vimeo.com', 'tumblr.com', 'wordpress.com', 'idk.com'
+  'githubusercontent.com', 'gitlab.com', 'bitbucket.org', 'wikipedia.org', 'paypal.com',
+  'chase.com', 'bankofamerica.com', 'wellsfargo.com', 'cisco.com', 'adobe.com', 'cloudflare.com',
+  'godaddy.com', 'reddit.com', 'pinterest.com', 'twitch.tv', 'zoom.us', 'salesforce.com',
+  'spotify.com', 'dropbox.com', 'ebay.com', 'vimeo.com', 'tumblr.com', 'wordpress.com',
+  'discord.com', 'discordapp.com', 'telegram.org', 'slack.com', 'stripe.com', 'shopify.com',
+  'vercel.com', 'netlify.com', 'heroku.com', 'digitalocean.com', 'figma.com', 'notion.so',
+  'atlassian.com', 'stackoverflow.com', 'medium.com', 'yahoo.com', 'bing.com', 'duckduckgo.com'
 ];
 
 exports.TOP_DOMAINS = TOP_DOMAINS;
@@ -49,6 +52,11 @@ exports.checkTyposquat = (urlString) => {
     const url = new URL(urlString);
     let hostname = url.hostname.toLowerCase();
     if (hostname.startsWith('www.')) hostname = hostname.slice(4);
+
+    // If this is an established domain or legitimate subdomain of a top brand, do not flag typosquatting
+    if (exports.isEstablishedDomain(hostname)) {
+      return factors;
+    }
 
     for (let domain of TOP_DOMAINS) {
       if (hostname !== domain) {

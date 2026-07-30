@@ -838,9 +838,8 @@ function displayCaseReport(caseFile) {
       if (item.present) secureCount++;
       const card = document.createElement('div');
       const isOk = item.present;
-      card.className = `p-2 rounded border text-[11px] flex flex-col justify-between transition-all ${
-        isOk ? 'bg-green-500/10 border-green-500/30 text-green-800' : 'bg-red-500/10 border-red-500/30 text-red-800'
-      }`;
+      card.className = `p-2 rounded border text-[11px] flex flex-col justify-between transition-all ${isOk ? 'bg-green-500/10 border-green-500/30 text-green-800' : 'bg-red-500/10 border-red-500/30 text-red-800'
+        }`;
 
       card.innerHTML = `
         <div class="flex items-center justify-between font-bold">
@@ -858,10 +857,9 @@ function displayCaseReport(caseFile) {
 
     const total = headerItems.length || 4;
     headersBadge.textContent = `${secureCount}/${total} PASS`;
-    headersBadge.className = `font-data-mono text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-      secureCount === total ? 'bg-green-100 text-green-800 border border-green-300' :
+    headersBadge.className = `font-data-mono text-[10px] px-2 py-0.5 rounded font-bold uppercase ${secureCount === total ? 'bg-green-100 text-green-800 border border-green-300' :
       secureCount >= 2 ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 'bg-red-100 text-red-800 border border-red-300'
-    }`;
+      }`;
   }
 
 
@@ -1114,21 +1112,88 @@ function renderRegistryRecord() {
 
   // Populate active case selector dropdown in Registry Record view
   const caseSelect = document.getElementById('registry-case-select');
-  if (caseSelect && serverCases.length > 0) {
-    caseSelect.innerHTML = serverCases.map(sc => {
-      const isSel = (activeCaseFile && sc.id === activeCaseFile.id) ? 'selected' : '';
-      const domain = sc.url.replace('https://', '').replace('http://', '').split('/')[0];
-      return `<option value="${sc.id}" ${isSel}>CASE #${sc.id.substring(0, 8)} (${domain})</option>`;
-    }).join('');
+  const customItemsContainer = document.getElementById('custom-dropdown-items');
+  const customDropdownLabel = document.getElementById('custom-dropdown-label');
+  const customDropdownBtn = document.getElementById('custom-dropdown-btn');
+  const customDropdownMenu = document.getElementById('custom-dropdown-menu');
 
-    caseSelect.onchange = (e) => {
-      const selectedId = e.target.value;
-      const found = serverCases.find(sc => sc.id === selectedId);
-      if (found) {
-        currentCase = found;
-        renderRegistryRecord();
+  if (serverCases.length > 0) {
+    // 1. Fallback Select
+    if (caseSelect) {
+      caseSelect.innerHTML = serverCases.map(sc => {
+        const isSel = (activeCaseFile && sc.id === activeCaseFile.id) ? 'selected' : '';
+        const domain = sc.url.replace(/^https?:\/\//, '').split('/')[0];
+        return `<option value="${sc.id}" ${isSel}>${domain} (${sc.score}/100)</option>`;
+      }).join('');
+
+      caseSelect.onchange = (e) => {
+        const selectedId = e.target.value;
+        const found = serverCases.find(sc => sc.id === selectedId);
+        if (found) {
+          currentCase = found;
+          renderRegistryRecord();
+        }
+      };
+    }
+
+    // 2. Custom Cyber Dropdown Selector
+    if (activeCaseFile && customDropdownLabel) {
+      const activeCleanUrl = activeCaseFile.url.replace(/^https?:\/\//, '');
+      customDropdownLabel.innerHTML = `
+        <span class="material-symbols-outlined text-[15px] text-[#4ade80]">public</span>
+        <span class="truncate max-w-[190px]">${activeCleanUrl}</span>
+        <span class="text-[9px] text-[#74777b] font-normal">#${activeCaseFile.id.substring(0, 6)}</span>
+      `;
+    }
+
+    if (customItemsContainer) {
+      customItemsContainer.innerHTML = serverCases.map(sc => {
+        const isSelected = activeCaseFile && sc.id === activeCaseFile.id;
+        const cleanUrl = sc.url.replace(/^https?:\/\//, '');
+        const badgeColor = sc.score < 50 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : (sc.score < 80 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30');
+        const verdictText = sc.score < 50 ? 'FLAGGED' : (sc.score < 80 ? 'SUSPICIOUS' : 'SAFE');
+        
+        return `
+          <div class="custom-dropdown-item px-3 py-2.5 flex items-center justify-between hover:bg-[#1a2b3c] cursor-pointer transition-colors ${isSelected ? 'bg-[#142332] text-[#4ade80] font-bold' : 'text-gray-200'}" data-id="${sc.id}">
+            <div class="flex items-center gap-2 truncate flex-1 mr-2">
+              ${isSelected ? '<span class="material-symbols-outlined text-[14px] text-[#4ade80]">check</span>' : '<span class="material-symbols-outlined text-[14px] opacity-40">public</span>'}
+              <span class="truncate font-mono text-xs">${cleanUrl}</span>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${badgeColor}">${sc.score} // ${verdictText}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      customItemsContainer.querySelectorAll('.custom-dropdown-item').forEach(item => {
+        item.onclick = () => {
+          const selectedId = item.getAttribute('data-id');
+          const found = serverCases.find(sc => sc.id === selectedId);
+          if (found) {
+            currentCase = found;
+            if (customDropdownMenu) customDropdownMenu.classList.add('hidden');
+            renderRegistryRecord();
+          }
+        };
+      });
+    }
+  }
+
+  // Bind dropdown toggle button
+  if (customDropdownBtn && !customDropdownBtn.hasAttribute('data-bound')) {
+    customDropdownBtn.setAttribute('data-bound', 'true');
+    customDropdownBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (customDropdownMenu) {
+        customDropdownMenu.classList.toggle('hidden');
       }
     };
+    document.addEventListener('click', (e) => {
+      if (customDropdownMenu && !e.target.closest('#custom-case-dropdown')) {
+        customDropdownMenu.classList.add('hidden');
+      }
+    });
   }
 
   if (!activeCaseFile || !activeCaseFile.registryRecord) {
@@ -1249,10 +1314,10 @@ function renderRegistryRecord() {
 
   // 4.5 Email Security Audit (SPF & DMARC)
   const emailSec = activeCaseFile.emailSecurity || {};
-  const spfStatus = emailSec.hasSpf 
+  const spfStatus = emailSec.hasSpf
     ? `<span class="text-green-700 font-bold">VERIFIED (SPF Configured)</span>`
     : `<span class="text-red-700 font-bold">VULNERABLE (Missing SPF Record)</span>`;
-  const dmarcStatus = emailSec.hasDmarc 
+  const dmarcStatus = emailSec.hasDmarc
     ? `<span class="text-green-700 font-bold">VERIFIED (DMARC Configured)</span>`
     : `<span class="text-red-700 font-bold">VULNERABLE (Missing DMARC Enforcement)</span>`;
 
@@ -2387,6 +2452,9 @@ function updateInvestigatorNotes(caseFile) {
     notesText.textContent = caseFile.notes;
   }
 }
+
+
+
 
 
 

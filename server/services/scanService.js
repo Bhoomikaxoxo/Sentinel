@@ -172,8 +172,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     sslCertAgeDays = certResult.ageDays;
   }
 
-  // Heuristic Cross-Check takeover rule: domain old, cert brand-new
-  if (domainAgeDays !== null && domainAgeDays > 730 && sslCertAgeDays !== null && sslCertAgeDays < 7) {
+  // Heuristic Cross-Check takeover rule: domain old, cert brand-new (only apply to unverified/unknown domains)
+  if (!domainUtils.isEstablishedDomain(hostname) && domainAgeDays !== null && domainAgeDays > 730 && sslCertAgeDays !== null && sslCertAgeDays < 7) {
     log(`Heuristics warning: Recently reissued SSL certificate (${Math.round(sslCertAgeDays)} days old) on a pre-existing domain (${Math.round(domainAgeDays)} days old) — possible takeover.`);
     factors.push({ id: 'recently_reissued_cert' });
   }

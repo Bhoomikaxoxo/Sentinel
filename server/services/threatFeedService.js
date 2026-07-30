@@ -43,6 +43,8 @@ function parseCsvLine(line) {
   return result.map(s => s.trim().replace(/^"|"$/g, ''));
 }
 
+const domainUtils = require('./domainUtils');
+
 // Parse URLhaus CSV file
 function loadUrlhaus() {
   urlhausUrls.clear();
@@ -61,7 +63,9 @@ function loadUrlhaus() {
       urlhausUrls.add(urlStr);
       try {
         const u = new URL(urlStr);
-        urlhausDomains.add(u.hostname);
+        if (!domainUtils.isEstablishedDomain(u.hostname)) {
+          urlhausDomains.add(u.hostname);
+        }
       } catch (e) {}
     }
   }
@@ -90,7 +94,9 @@ function loadPhishTank() {
       phishtankUrls.add(urlStr);
       try {
         const u = new URL(urlStr);
-        phishtankDomains.add(u.hostname);
+        if (!domainUtils.isEstablishedDomain(u.hostname)) {
+          phishtankDomains.add(u.hostname);
+        }
       } catch (e) {}
     }
   }
@@ -110,7 +116,9 @@ function loadOpenPhish() {
     openphishUrls.add(trimmed);
     try {
       const u = new URL(trimmed);
-      openphishDomains.add(u.hostname);
+      if (!domainUtils.isEstablishedDomain(u.hostname)) {
+        openphishDomains.add(u.hostname);
+      }
     } catch (e) {}
   }
 }
@@ -195,20 +203,21 @@ exports.startScheduler = () => {
 exports.checkAgainstFeeds = (urlString, hostname) => {
   const urlLower = urlString.toLowerCase().trim();
   const hostLower = hostname.toLowerCase().trim();
+  const isEstablished = domainUtils.isEstablishedDomain(hostLower);
   const matchedFeeds = [];
 
   // Check URLhaus
-  if (urlhausUrls.has(urlLower) || urlhausUrls.has(urlLower + '/') || urlhausDomains.has(hostLower)) {
+  if (urlhausUrls.has(urlLower) || urlhausUrls.has(urlLower + '/') || (!isEstablished && urlhausDomains.has(hostLower))) {
     matchedFeeds.push('urlhaus');
   }
 
   // Check PhishTank
-  if (phishtankUrls.has(urlLower) || phishtankUrls.has(urlLower + '/') || phishtankDomains.has(hostLower)) {
+  if (phishtankUrls.has(urlLower) || phishtankUrls.has(urlLower + '/') || (!isEstablished && phishtankDomains.has(hostLower))) {
     matchedFeeds.push('phishtank');
   }
 
   // Check OpenPhish
-  if (openphishUrls.has(urlLower) || openphishUrls.has(urlLower + '/') || openphishDomains.has(hostLower)) {
+  if (openphishUrls.has(urlLower) || openphishUrls.has(urlLower + '/') || (!isEstablished && openphishDomains.has(hostLower))) {
     matchedFeeds.push('openphish');
   }
 
