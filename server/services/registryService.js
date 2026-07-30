@@ -4,9 +4,15 @@ const axios = require('axios');
 const tls = require('tls');
 const reputationService = require('./reputationService');
 
-const CACHE_DIR = path.join(__dirname, '../db/cache');
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
+const CACHE_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'cache')
+  : path.join(__dirname, '../db/cache');
+try {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  }
+} catch (err) {
+  // Ignore directory creation errors on read-only environments
 }
 
 // Helper: Query ip-api.com to retrieve IP Geolocation and ASN details

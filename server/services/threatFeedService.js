@@ -2,7 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-const FEED_DIR = path.join(__dirname, '../db/threat-feeds');
+const FEED_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'threat-feeds')
+  : path.join(__dirname, '../db/threat-feeds');
 const PATH_URLHAUS = path.join(FEED_DIR, 'urlhaus.csv');
 const PATH_PHISHTANK = path.join(FEED_DIR, 'phishtank.csv');
 const PATH_OPENPHISH = path.join(FEED_DIR, 'openphish.txt');
@@ -19,8 +21,12 @@ let openphishDomains = new Set();
 let lastUpdated = { urlhaus: null, phishtank: null, openphish: null };
 
 // Ensure database directory exists
-if (!fs.existsSync(FEED_DIR)) {
-  fs.mkdirSync(FEED_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(FEED_DIR)) {
+    fs.mkdirSync(FEED_DIR, { recursive: true });
+  }
+} catch (err) {
+  // Silently ignore directory creation errors on read-only environments
 }
 
 // Simple CSV parser supporting quotes and commas
