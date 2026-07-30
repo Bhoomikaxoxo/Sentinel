@@ -132,41 +132,84 @@ async function switchTab(buttonId) {
   }
 }
 
-// Server Database API integration
+// Device LocalStorage Persistence for Case History
+const LOCAL_STORAGE_CASES_KEY = 'sentinel_device_cases';
+
+function getLocalCases() {
+  try {
+    const data = localStorage.getItem(LOCAL_STORAGE_CASES_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLocalCases(cases) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_CASES_KEY, JSON.stringify(cases || []));
+  } catch (e) {
+    console.error('Failed to persist cases to device storage:', e);
+  }
+}
+
+function saveCaseToDevice(caseFile) {
+  if (!caseFile || !caseFile.id) return serverCases;
+  let localCases = getLocalCases();
+  localCases = localCases.filter(c => c && c.id !== caseFile.id && c.url !== caseFile.url);
+  localCases.unshift(caseFile);
+  if (localCases.length > 100) localCases = localCases.slice(0, 100);
+  saveLocalCases(localCases);
+  return localCases;
+}
+
+// Server Database API integration & Device Local Storage Sync
 async function fetchCasesFromServer() {
+  const localCases = getLocalCases();
+  let serverFetched = [];
+
   try {
     const response = await fetch('/api/cases', {
       headers: { 'x-client-id': getClientId() }
     });
     if (response.ok) {
-      serverCases = await response.json();
+      serverFetched = await response.json();
     }
   } catch (err) {
     console.error('Failed to load cases from server database:', err);
   }
+
+  // Deduplicate and merge local device cases + server cases
+  const caseMap = new Map();
+  if (Array.isArray(localCases)) {
+    localCases.forEach(c => { if (c && c.id) caseMap.set(c.id, c); });
+  }
+  if (Array.isArray(serverFetched)) {
+    serverFetched.forEach(c => { if (c && c.id) caseMap.set(c.id, c); });
+  }
+
+  serverCases = Array.from(caseMap.values()).sort((a, b) => {
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+
+  saveLocalCases(serverCases);
 }
 
 async function clearArchiveOnServer() {
-  if (confirm("Are you sure you want to clear all archived case files from the server database?")) {
+  if (confirm("Are you sure you want to clear all archived case files from your device and database?")) {
     try {
-      const response = await fetch('/api/cases', {
+      await fetch('/api/cases', {
         method: 'DELETE',
         headers: { 'x-client-id': getClientId() }
-      });
-      if (response.ok) {
-        serverCases = [];
-        renderArchiveGrid();
-        currentCase = null;
-        updateDashboardStats();
-        document.getElementById('reportView').classList.add('hidden');
-        document.getElementById('scanner-placeholder').classList.remove('hidden');
-      } else {
-        alert('Failed to clear case database.');
-      }
-    } catch (err) {
-      alert('Network error connecting to server.');
-      console.error(err);
-    }
+      }).catch(() => {});
+    } catch (_) {}
+
+    localStorage.removeItem(LOCAL_STORAGE_CASES_KEY);
+    serverCases = [];
+    renderArchiveGrid();
+    currentCase = null;
+    updateDashboardStats();
+    document.getElementById('reportView').classList.add('hidden');
+    document.getElementById('scanner-placeholder').classList.remove('hidden');
   }
 }
 
@@ -402,9 +445,10 @@ async function runSingleScan(urlInput) {
 
     currentCase = caseFile;
 
-    // Add to serverCases local cache array
-    serverCases = serverCases.filter(c => c.url !== caseFile.url);
+    // Add to serverCases and persist to local device storage
+    serverCases = serverCases.filter(c => c.url !== caseFile.url && c.id !== caseFile.id);
     serverCases.unshift(caseFile);
+    saveLocalCases(serverCases);
     updateDashboardStats();
 
     // Live print case logs in console tab
@@ -580,10 +624,10 @@ document.getElementById('watch-case-btn').addEventListener('click', async () => 
 // Copy Shareable Link event handler
 document.getElementById('share-report-btn').addEventListener('click', () => {
   if (!currentCase) return;
-  const shareUrl = `${window.location.origin}/api/cases/report/${currentCase.id}`;
+  const shareUrl = `${window.location.origin}/?case=${encodeURIComponent(currentCase.id)}`;
   navigator.clipboard.writeText(shareUrl)
     .then(() => {
-      alert(`Standalone share link copied to clipboard:\n${shareUrl}`);
+      alert(`Shareable Case Report link copied to clipboard:\n${shareUrl}`);
     })
     .catch(err => {
       alert('Failed to copy link. Clipboard access blocked.');
@@ -1362,13 +1406,37 @@ window.addEventListener('DOMContentLoaded', async () => {
   initTabs();
   initSettings();
 
-  // Load past cases from server
+  // Load past cases from local device storage + server
   await fetchCasesFromServer();
 
   // Always compute stats and list intake logs
   updateDashboardStats();
 
-  // Start with morning briefing by default
+  // Check if a shared case ID is passed in the URL (e.g. ?case=CASE_ID)
+  const urlParams = new URLSearchParams(window.location.search);
+  const sharedCaseId = urlParams.get('case');
+
+  if (sharedCaseId) {
+    let targetCase = serverCases.find(c => c && c.id === sharedCaseId);
+    if (!targetCase) {
+      try {
+        const res = await fetch(`/api/cases/${encodeURIComponent(sharedCaseId)}`);
+        if (res.ok) {
+          targetCase = await res.json();
+          saveCaseToDevice(targetCase);
+          serverCases = saveCaseToDevice(targetCase);
+        }
+      } catch (e) {}
+    }
+    if (targetCase) {
+      currentCase = targetCase;
+      displayCaseReport(targetCase);
+      switchTab('nav-dashboard');
+      return;
+    }
+  }
+
+  // Start with briefing by default
   currentCase = null;
   document.getElementById('reportView').classList.add('hidden');
   document.getElementById('scanner-placeholder').classList.remove('hidden');
