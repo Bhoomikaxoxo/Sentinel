@@ -122,11 +122,11 @@ exports.scanUrl = async (urlString, options = {}) => {
     ? axios.post(`${workerUrl}/render`, { url, userAgent, timeout }, { timeout: renderTimeout })
     : Promise.reject(new Error('No external render worker configured'));
 
-  // Microlink screenshot API — runs in parallel, free tier, no API key needed
+  // WordPress mshots screenshot API — free, no API key, returns image bytes directly
   const targetUrl = url.startsWith('http') ? url : `https://${url}`;
   const screenshotApiPromise = axios.get(
-    `https://api.microlink.io/?url=${encodeURIComponent(targetUrl)}&screenshot=true&meta=false`,
-    { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)' } }
+    `https://s0.wordpress.com/mshots/v1/${encodeURIComponent(targetUrl)}?w=1280`,
+    { responseType: 'arraybuffer', timeout: 9000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)' } }
   );
 
   const [
@@ -228,25 +228,15 @@ exports.scanUrl = async (urlString, options = {}) => {
     }
   }
 
-  // Use Microlink screenshot (already fetched in parallel above)
-  // Microlink returns JSON: { data: { screenshot: { url: '...' } } } — fetch the image separately
+  // Use WordPress mshots screenshot (already fetched in parallel above)
+  // Returns image bytes directly — check size to skip the loading placeholder (<15KB)
   if (!screenshotBase64 && screenshotApiRes.status === 'fulfilled') {
-    const screenshotUrl = screenshotApiRes.value?.data?.data?.screenshot?.url;
-    if (screenshotUrl) {
-      try {
-        const imgRes = await axios.get(screenshotUrl, { responseType: 'arraybuffer', timeout: 7000 });
-        const imgData = imgRes.data;
-        if (imgData && imgData.byteLength > 5000) {
-          screenshotBase64 = Buffer.from(imgData).toString('base64');
-          log(`Active probe: Screenshot captured via Microlink API (${Math.round(imgData.byteLength / 1024)}KB).`);
-        } else {
-          log(`Active probe: Microlink image too small or empty.`);
-        }
-      } catch (imgErr) {
-        log(`Active probe: Failed to fetch Microlink screenshot - ${imgErr.message}`);
-      }
+    const imgData = screenshotApiRes.value?.data;
+    if (imgData && imgData.byteLength > 15000) {
+      screenshotBase64 = Buffer.from(imgData).toString('base64');
+      log(`Active probe: Screenshot captured via mshots API (${Math.round(imgData.byteLength / 1024)}KB).`);
     } else {
-      log(`Active probe: Microlink API returned no screenshot URL. Status: ${screenshotApiRes.value?.data?.status}`);
+      log(`Active probe: mshots returned placeholder or empty image (${imgData?.byteLength || 0} bytes).`);
     }
   } else if (!screenshotBase64) {
     log(`Active probe: Screenshot API unavailable - ${screenshotApiRes.reason?.message || 'unknown'}`);
