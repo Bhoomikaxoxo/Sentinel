@@ -942,20 +942,6 @@ main::-webkit-scrollbar-thumb:hover { background: #74777b; }
   z-index: 15;
   animation: rolling-scan 4s linear infinite;
   filter: blur(1px);
-/* ── 4. TERMINAL ROLLING SCANLINE ─────────────────────────── */
-.terminal-rolling-scan {
-  position: absolute;
-  left: 0; right: 0;
-  height: 4px;
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(56, 189, 248, 0.2) 50%,
-    transparent 100%
-  );
-  pointer-events: none;
-  z-index: 5;
-  animation: rolling-scan 5s linear infinite;
 }
 
 /* ── 6. HEADER CLOCK PHOSPHOR FLICKER ────────────────────── */
