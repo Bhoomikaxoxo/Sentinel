@@ -122,12 +122,15 @@ exports.scanUrl = async (urlString, options = {}) => {
     ? axios.post(`${workerUrl}/render`, { url, userAgent, timeout }, { timeout: renderTimeout })
     : Promise.reject(new Error('No external render worker configured'));
 
-  // WordPress mshots screenshot API — free, no API key, returns image bytes directly
+  // ScreenshotOne API — reliable, runs in parallel, key from env var
   const targetUrl = url.startsWith('http') ? url : `https://${url}`;
-  const screenshotApiPromise = axios.get(
-    `https://s0.wordpress.com/mshots/v1/${encodeURIComponent(targetUrl)}?w=1280`,
-    { responseType: 'arraybuffer', timeout: 9000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)' } }
-  );
+  const ssAccessKey = process.env.SCREENSHOTONE_ACCESS_KEY;
+  const screenshotApiPromise = ssAccessKey
+    ? axios.get(
+        `https://api.screenshotone.com/take?access_key=${ssAccessKey}&url=${encodeURIComponent(targetUrl)}&full_page=false&viewport_width=1280&viewport_height=900&format=png&response_type=by_format`,
+        { responseType: 'arraybuffer', timeout: 9000 }
+      )
+    : Promise.reject(new Error('SCREENSHOTONE_ACCESS_KEY not configured'));
 
   const [
     reputationRes,
@@ -228,15 +231,14 @@ exports.scanUrl = async (urlString, options = {}) => {
     }
   }
 
-  // Use WordPress mshots screenshot (already fetched in parallel above)
-  // Returns image bytes directly — check size to skip the loading placeholder (<15KB)
+  // Use ScreenshotOne screenshot (already fetched in parallel above)
   if (!screenshotBase64 && screenshotApiRes.status === 'fulfilled') {
     const imgData = screenshotApiRes.value?.data;
-    if (imgData && imgData.byteLength > 15000) {
+    if (imgData && imgData.byteLength > 5000) {
       screenshotBase64 = Buffer.from(imgData).toString('base64');
-      log(`Active probe: Screenshot captured via mshots API (${Math.round(imgData.byteLength / 1024)}KB).`);
+      log(`Active probe: Screenshot captured via ScreenshotOne (${Math.round(imgData.byteLength / 1024)}KB).`);
     } else {
-      log(`Active probe: mshots returned placeholder or empty image (${imgData?.byteLength || 0} bytes).`);
+      log(`Active probe: ScreenshotOne returned empty image (${imgData?.byteLength || 0} bytes).`);
     }
   } else if (!screenshotBase64) {
     log(`Active probe: Screenshot API unavailable - ${screenshotApiRes.reason?.message || 'unknown'}`);
