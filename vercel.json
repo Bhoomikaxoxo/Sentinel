@@ -1,5 +1,7 @@
 {
   "outputDirectory": "client",
+  "installCommand": "npm install",
+  "buildCommand": "echo 'Build OK'",
   "rewrites": [
     {
       "source": "/api/test",
