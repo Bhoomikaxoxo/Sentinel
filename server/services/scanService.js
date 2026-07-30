@@ -203,7 +203,9 @@ exports.scanUrl = async (urlString, options = {}) => {
     domHtml = html;
     if (screenshot) log(`Active probe: Snapshot image successfully captured.`);
   } else {
-    log(`Active probe: Sandbox worker unavailable. Executing direct HTTP DOM inspection...`);
+    log(`Active probe: Sandbox worker unavailable. Executing direct HTTP DOM inspection + screenshot API...`);
+
+    // Fetch DOM via direct HTTP
     try {
       const httpRes = await axios.get(url, {
         headers: { 'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
@@ -216,6 +218,22 @@ exports.scanUrl = async (urlString, options = {}) => {
       }
     } catch (httpErr) {
       log(`Active probe: Direct HTTP DOM inspection note - ${httpErr.message}`);
+    }
+
+    // Fetch screenshot via thum.io (free, no API key required)
+    try {
+      const screenshotUrl = `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`;
+      const imgRes = await axios.get(screenshotUrl, {
+        responseType: 'arraybuffer',
+        timeout: 8000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)' }
+      });
+      if (imgRes && imgRes.data && imgRes.data.byteLength > 5000) {
+        screenshotBase64 = Buffer.from(imgRes.data).toString('base64');
+        log(`Active probe: Screenshot captured via thum.io API (${Math.round(imgRes.data.byteLength / 1024)}KB).`);
+      }
+    } catch (imgErr) {
+      log(`Active probe: Screenshot API unavailable - ${imgErr.message}`);
     }
   }
 
