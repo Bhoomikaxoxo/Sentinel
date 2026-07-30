@@ -1,5 +1,5 @@
 const { PNG } = require('pngjs');
-const pixelmatch = require('pixelmatch').default || require('pixelmatch');
+const pixelmatch = require('pixelmatch');
 
 exports.calculateVisualDiff = (base64PngA, base64PngB) => {
   try {
