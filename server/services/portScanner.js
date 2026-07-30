@@ -33,7 +33,12 @@ async function scanPorts(hostname) {
         socket.destroy();
       });
       
-      socket.connect({ host: hostname, port });
+      try {
+        socket.connect({ host: hostname, port });
+      } catch (connErr) {
+        resolve({ port, open: false, service });
+        try { socket.destroy(); } catch (_) {}
+      }
     });
   };
 

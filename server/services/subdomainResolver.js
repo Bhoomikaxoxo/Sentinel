@@ -39,7 +39,7 @@ async function fetchCrtshSubdomains(rootDomain) {
     const response = await axios.get(
       `https://crt.sh/?q=%.${encodeURIComponent(rootDomain)}&output=json`,
       {
-        timeout: 12000,
+        timeout: process.env.VERCEL ? 2500 : 12000,
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)'

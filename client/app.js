@@ -390,7 +390,14 @@ async function runSingleScan(urlInput) {
       })
     });
 
-    if (!response.ok) throw new Error('API Error');
+    if (!response.ok) {
+      let errMsg = 'Server API Error';
+      try {
+        const errData = await response.json();
+        if (errData && errData.error) errMsg = errData.error;
+      } catch (_) {}
+      throw new Error(errMsg);
+    }
     const caseFile = await response.json();
 
     currentCase = caseFile;
