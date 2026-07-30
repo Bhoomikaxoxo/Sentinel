@@ -12,7 +12,7 @@ const RULE_WEIGHTS = {
   threat_feed_match: { score: -40, desc: "Community threat-intelligence feeds flagged this URL/domain as malicious." },
   multi_feed_flagged: { score: -100, desc: "URL/domain matched multiple community threat feeds (corroborated malicious signal)." },
   newly_registered_domain: { score: -30, desc: "Domain was registered within the last 30 days." },
-  rdap_unavailable: { score: -10, desc: "Domain registration details could not be verified (WHOIS/RDAP lookup failed)." },
+  rdap_unavailable: { score: 0, desc: "Domain registration details could not be verified (WHOIS/RDAP lookup failed)." },
   new_ssl_certificate: { score: -15, desc: "The SSL certificate was issued very recently (within the last 7 days)." },
   recently_reissued_cert: { score: -10, desc: "Recently reissued certificate on a pre-existing domain — possible takeover or repurposing." },
   wayback_content_divergence: { score: -15, desc: "Page content differs significantly from its historic Wayback Machine archive (possible redirect hijack)." },
@@ -42,10 +42,12 @@ exports.calculateScore = (factors) => {
     const rule = RULE_WEIGHTS[factor.id];
     if (rule) {
       score += rule.score;
-      if (factor.detail) {
-        reasons.push(`${rule.desc} (Looks like ${factor.detail})`);
-      } else {
-        reasons.push(rule.desc);
+      if (rule.score !== 0) {
+        if (factor.detail) {
+          reasons.push(`${rule.desc} (Looks like ${factor.detail})`);
+        } else {
+          reasons.push(rule.desc);
+        }
       }
     }
   }
