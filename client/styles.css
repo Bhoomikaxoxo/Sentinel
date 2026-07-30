@@ -125,8 +125,6 @@
     box-shadow: 4px 0 20px rgba(0,0,0,0.4);
 }
 
-.sidebar-logo { }
-
 .sidebar-icon-shield {
     width: 42px; height: 42px;
     background: rgba(186,26,26,0.12);
@@ -455,8 +453,6 @@
 /* ============================================================
    ✨ BRIEFING HEADER
    ============================================================ */
-
-.briefing-header { }
 .briefing-header-meta {
     display: flex;
     align-items: center;
