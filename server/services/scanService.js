@@ -111,26 +111,48 @@ exports.scanUrl = async (urlString, options = {}) => {
   const typosquatFactors = domainUtils.checkTyposquat(url);
   factors = factors.concat(typosquatFactors);
 
-  // 3. WHOIS / RDAP lookup
-  log(`Reputation audit: Contacting WHOIS and RDAP registrar records...`);
-  const reputationResult = await reputationService.checkReputation(url);
+  // 3. Concurrent Parallel Probes (WHOIS, SSL, Headers, Browser Render, Registry, Mapper)
+  log(`Concurrent Forensics: Executing parallel network probes...`);
+  const renderTimeout = timeout ? parseInt(timeout) + 3000 : 18000;
+  const workerUrl = process.env.RENDER_WORKER_URL || 'http://127.0.0.1:4000';
+
+  const [
+    reputationRes,
+    certRes,
+    headerRes,
+    renderRes,
+    registryRes,
+    portsRes,
+    subdomainsRes,
+    sslInfoRes
+  ] = await Promise.allSettled([
+    reputationService.checkReputation(url),
+    certTransparencyService.checkCertTransparency(hostname),
+    securityHeaders.analyzeHeaders(url),
+    axios.post(`${workerUrl}/render`, { url, userAgent, timeout }, { timeout: renderTimeout }),
+    registryService.buildRegistryRecord(hostname),
+    portScanner.scanPorts(hostname),
+    subdomainResolver.resolveSubdomains(hostname),
+    getSslInfo(hostname)
+  ]);
+
+  // Process Reputation (WHOIS / RDAP)
+  const reputationResult = reputationRes.status === 'fulfilled' ? reputationRes.value : { factors: [{ id: 'rdap_unavailable' }], domainAgeDays: null, registrarName: null, emailSecurity: null };
   const reputationFactors = reputationResult.factors;
   const domainAgeDays = reputationResult.domainAgeDays;
   const registrarName = reputationResult.registrarName;
+  const emailSecurity = reputationResult.emailSecurity || null;
   factors = factors.concat(reputationFactors);
   log(`Reputation audit complete. Age: ${domainAgeDays !== null ? Math.round(domainAgeDays) + ' days' : 'unknown'}`);
 
-  // 4. Community Threat Intelligence Feeds (Keyless Fallback check)
+  // Process Community Threat Intelligence Feeds (Keyless Fallback check)
   log(`Threat feeds: Querying local URLhaus, PhishTank, and OpenPhish caches...`);
   const threatFeedsMatched = [];
   const feedResult = threatFeedService.checkAgainstFeeds(url, hostname);
   if (feedResult.matched) {
     log(`Threat feeds: TARGET FLAGGED. Listed in: ${feedResult.sources.join(', ')}`);
     factors.push({ id: 'threat_feed_match', detail: feedResult.sources.join(', ') });
-    
-    // Add matched feeds to list
     feedResult.sources.forEach(src => threatFeedsMatched.push(src));
-
     if (feedResult.sources.length >= 2) {
       log(`Threat feeds: Multiple matches detected. Direct FLAGGED escalation.`);
       factors.push({ id: 'multi_feed_flagged' });
@@ -139,9 +161,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     log(`Threat feeds: Clean. Not found in community threat blacklists.`);
   }
 
-  // 5. Certificate Transparency (crt.sh check)
-  log(`Certificate transparency: Checking public certificate logs on crt.sh...`);
-  const certResult = await certTransparencyService.checkCertTransparency(hostname);
+  // Process Certificate Transparency
+  const certResult = certRes.status === 'fulfilled' ? certRes.value : { newCert: false };
   let sslCertAgeDays = null;
   if (certResult.newCert) {
     log(`Certificate transparency warning: SSL Certificate issued in the last 7 days.`);
@@ -157,46 +178,36 @@ exports.scanUrl = async (urlString, options = {}) => {
     factors.push({ id: 'recently_reissued_cert' });
   }
 
-  // 6. Security Headers & Redirection Trail
-  log(`Secure Transport audit: Querying headers and following redirection chain...`);
+  // Process Security Headers & Redirection Trail
   let headerResult = { factors: [], finalUrl: url, redirectChain: [url] };
-  try {
-    headerResult = await securityHeaders.analyzeHeaders(url);
-    factors = factors.concat(headerResult.factors);
-    url = headerResult.finalUrl;
-  } catch (err) {
-    log(`Secure Transport audit error: ${err.message}`);
+  if (headerRes.status === 'fulfilled') {
+    headerResult = headerRes.value;
+    factors = factors.concat(headerResult.factors || []);
+    if (headerResult.finalUrl) url = headerResult.finalUrl;
+  } else {
+    log(`Secure Transport audit error: ${headerRes.reason?.message || 'Header request failed'}`);
   }
 
-  // 7. Active browser rendering via Puppeteer Render Worker
+  // Process Active browser rendering via Puppeteer Render Worker
   let screenshotBase64 = null;
   let domHtml = null;
-  log(`Active probe: Initiating sandboxed browser connection on port 4000...`);
-  if (userAgent) log(`Applying custom browser User-Agent: ${userAgent}`);
-  if (timeout) log(`Applying custom browser timeout: ${timeout}ms`);
-
-  try {
-    const renderTimeout = timeout ? parseInt(timeout) + 3000 : 18000;
-    const workerUrl = process.env.RENDER_WORKER_URL || 'http://127.0.0.1:4000';
-    const renderRes = await axios.post(`${workerUrl}/render`, { 
-      url, 
-      userAgent, 
-      timeout 
-    }, { timeout: renderTimeout });
-    
-    const { html, screenshot } = renderRes.data;
+  if (renderRes.status === 'fulfilled' && renderRes.value?.data) {
+    const { html, screenshot } = renderRes.value.data;
     screenshotBase64 = screenshot;
     domHtml = html;
-
-    if (screenshot) {
-      log(`Active probe: Snapshot image successfully captured.`);
-    }
-  } catch (renderError) {
-    log(`Active probe: Sandboxed connection failed - ${renderError.message}`);
+    if (screenshot) log(`Active probe: Snapshot image successfully captured.`);
+  } else {
+    log(`Active probe: Sandboxed connection failed - ${renderRes.reason?.message || 'Render failed'}`);
     factors.push({ id: 'dom_analysis_failed' });
   }
 
-  // 7.5 DOM Heuristics & Asset Audit
+  // Process Registry Record & Mapper
+  const registryRecord = registryRes.status === 'fulfilled' ? registryRes.value : null;
+  const openPorts = portsRes.status === 'fulfilled' ? portsRes.value : [];
+  const resolvedSubdomains = subdomainsRes.status === 'fulfilled' ? subdomainsRes.value : [];
+  const sslInfo = sslInfoRes.status === 'fulfilled' ? sslInfoRes.value : null;
+
+  // 4. DOM Heuristics & Asset Audit
   let domResult = { dependencies: { scripts: [], stylesheets: [], iframes: [] }, brandFlags: [] };
   if (domHtml) {
     try {
@@ -210,7 +221,7 @@ exports.scanUrl = async (urlString, options = {}) => {
     }
   }
 
-  // 8. Wayback Machine Jaccard Similarity (Content defacement check)
+  // 5. Wayback Machine Jaccard Similarity (Content defacement check)
   let waybackSimilarity = null;
   if (domHtml) {
     log(`Wayback analysis: Checking historical internet archives...`);
@@ -224,7 +235,7 @@ exports.scanUrl = async (urlString, options = {}) => {
     }
   }
 
-  // 9. Visual Screenshot Diffing
+  // 6. Visual Screenshot Diffing
   let visualDiffPercent = null;
   const prevCase = store.getLatestCaseByHostname(hostname);
   if (prevCase && prevCase.screenshot && screenshotBase64) {
@@ -236,10 +247,6 @@ exports.scanUrl = async (urlString, options = {}) => {
       factors.push({ id: 'visual_content_changed' });
     }
   }
-
-  // 10. Compile Public Registry Record (WHOIS, DNS, Geolocation, SSL history)
-  log(`Registry Record: Compiling public registry records (WHOIS, DNS, Geolocation, SSL history)...`);
-  const registryRecord = await registryService.buildRegistryRecord(hostname);
 
   if (domainUtils.isEstablishedDomain(hostname) && threatFeedsMatched.length === 0) {
     log(`Brand trust: Target domain is a verified established global brand (${hostname}). Applying brand trust verification.`);
@@ -359,25 +366,6 @@ exports.scanUrl = async (urlString, options = {}) => {
     });
   }
 
-  // 11. Run Mapper Scans (Open Ports, Subdomains, SSL Info)
-  log(`Forensic Mapper: Scanning open ports and active subdomains...`);
-  let openPorts = [];
-  let resolvedSubdomains = [];
-  let sslInfo = null;
-
-  try {
-    const mapperResults = await Promise.allSettled([
-      portScanner.scanPorts(hostname),
-      subdomainResolver.resolveSubdomains(hostname),
-      getSslInfo(hostname)
-    ]);
-    if (mapperResults[0].status === 'fulfilled') openPorts = mapperResults[0].value || [];
-    if (mapperResults[1].status === 'fulfilled') resolvedSubdomains = mapperResults[1].value || [];
-    if (mapperResults[2].status === 'fulfilled') sslInfo = mapperResults[2].value || null;
-  } catch (err) {
-    console.error('[scanService] Failed to gather mapper metadata:', err);
-  }
-
   // Calculate connectionTrail for graph visualization
   const connectionTrail = [];
   if (headerResult.redirectChain && headerResult.redirectChain.length > 0) {
@@ -428,6 +416,7 @@ exports.scanUrl = async (urlString, options = {}) => {
     sslCertAgeDays,
     waybackSimilarity,
     threatFeedsMatched,
+    emailSecurity,
     confidence,
     threatCategories: uniqueCategories,
     brandAnnotations,
@@ -438,6 +427,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     openPorts,
     resolvedSubdomains,
     sslInfo,
+    securityHeadersAudit: headerResult.securityHeadersAudit || null,
+    clientId: options.clientId || 'anonymous',
 
     // PUBLIC REGISTRY RECORD
     registryRecord

@@ -3,10 +3,11 @@ const router = express.Router();
 const store = require('../db/store');
 const registryService = require('../services/registryService');
 
-// GET /api/cases - List all cases
+// GET /api/cases - List all cases for current client
 router.get('/', (req, res) => {
   try {
-    const cases = store.getCases();
+    const clientId = req.headers['x-client-id'] || req.query.clientId;
+    const cases = store.getCases(clientId);
     res.json(cases);
   } catch (error) {
     res.status(500).json({ error: 'Failed to retrieve cases' });
@@ -84,10 +85,11 @@ router.post('/:id/feedback', (req, res) => {
   }
 });
 
-// DELETE /api/cases - Clear all cases
+// DELETE /api/cases - Clear cases for current client
 router.delete('/', (req, res) => {
   try {
-    const success = store.clearCases();
+    const clientId = req.headers['x-client-id'] || req.query.clientId;
+    const success = store.clearCases(clientId);
     if (success) {
       res.json({ status: 'success', message: 'Case database cleared' });
     } else {

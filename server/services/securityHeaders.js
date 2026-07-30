@@ -42,9 +42,40 @@ exports.analyzeHeaders = async (urlString) => {
     if (!headers['x-frame-options']) factors.push({ id: 'missing_x_frame_options' });
     if (!headers['x-content-type-options']) factors.push({ id: 'missing_x_content_type_options' });
 
-    return { factors, redirectChain, finalUrl };
+    const securityHeadersAudit = {
+      hsts: {
+        name: 'HSTS',
+        fullName: 'Strict-Transport-Security',
+        present: !!headers['strict-transport-security'],
+        value: headers['strict-transport-security'] || null,
+        desc: 'Enforces HTTPS encryption'
+      },
+      csp: {
+        name: 'CSP',
+        fullName: 'Content-Security-Policy',
+        present: !!headers['content-security-policy'],
+        value: headers['content-security-policy'] || null,
+        desc: 'Prevents XSS & data injection'
+      },
+      xFrameOptions: {
+        name: 'X-Frame-Options',
+        fullName: 'X-Frame-Options',
+        present: !!headers['x-frame-options'],
+        value: headers['x-frame-options'] || null,
+        desc: 'Clickjacking protection'
+      },
+      xContentTypeOptions: {
+        name: 'X-Content-Type',
+        fullName: 'X-Content-Type-Options',
+        present: !!headers['x-content-type-options'],
+        value: headers['x-content-type-options'] || null,
+        desc: 'MIME-sniffing prevention'
+      }
+    };
+
+    return { factors, redirectChain, finalUrl, securityHeadersAudit };
   } catch (error) {
     factors.push({ id: 'connection_failed', detail: error.message });
-    return { factors, redirectChain, finalUrl };
+    return { factors, redirectChain, finalUrl, securityHeadersAudit: null };
   }
 };

@@ -80,8 +80,7 @@ async function fetchCrtshSubdomains(rootDomain) {
  */
 async function resolveOne(fqdn, rootDomain) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000);
-  // Derive the subdomain label (everything before the rootDomain)
+  const timeoutId = setTimeout(() => controller.abort(), 1500);
   const sub = fqdn.endsWith(`.${rootDomain}`)
     ? fqdn.slice(0, -(rootDomain.length + 1))
     : fqdn;
@@ -112,11 +111,8 @@ async function resolveOne(fqdn, rootDomain) {
 
 /**
  * Run an array of FQDNs through resolveOne in parallel chunks.
- * @param {string[]} fqdnList - full domain names to resolve
- * @param {string} rootDomain
- * @param {number} batchSize - max concurrent DNS requests
  */
-async function resolveInBatches(fqdnList, rootDomain, batchSize = 8) {
+async function resolveInBatches(fqdnList, rootDomain, batchSize = 25) {
   const results = [];
   for (let i = 0; i < fqdnList.length; i += batchSize) {
     const chunk = fqdnList.slice(i, i + batchSize);
@@ -134,14 +130,6 @@ async function resolveInBatches(fqdnList, rootDomain, batchSize = 8) {
   return results;
 }
 
-/**
- * Main export. Combines crt.sh passive enumeration + wordlist brute-force,
- * deduplicates, then DNS-resolves everything.
- *
- * Returns: Array<{ subdomain: string, fqdn: string, resolved: boolean, ip?: string }>
- * Only resolved=true entries are included in the final output to keep the graph clean,
- * but up to MAX_UNRESOLVED unresolved entries are appended if total count is very low.
- */
 async function resolveSubdomains(rootDomain) {
   const cleanDomain = (rootDomain || '').toLowerCase().trim();
   if (!cleanDomain) return [];
@@ -151,8 +139,9 @@ async function resolveSubdomains(rootDomain) {
   // 1. Passive: crt.sh certificate transparency logs
   const crtshFqdns = await fetchCrtshSubdomains(cleanDomain);
 
-  // 2. Active: build FQDN list from wordlist
-  const wordlistFqdns = new Set(WORDLIST.map(sub => `${sub}.${cleanDomain}`));
+  // 2. Active: build FQDN list (use top 25 if crt.sh has no logs, otherwise check top candidates)
+  const targetWordlist = crtshFqdns.size > 0 ? WORDLIST.slice(0, 30) : WORDLIST.slice(0, 25);
+  const wordlistFqdns = new Set(targetWordlist.map(sub => `${sub}.${cleanDomain}`));
 
   // 3. Merge (crt.sh first; wordlist only adds names not already found)
   const allFqdns = new Set([...crtshFqdns, ...wordlistFqdns]);
@@ -160,8 +149,8 @@ async function resolveSubdomains(rootDomain) {
 
   console.log(`[subdomainResolver] Probing ${fqdnList.length} candidates for ${cleanDomain} (${crtshFqdns.size} from crt.sh, ${wordlistFqdns.size} from wordlist)`);
 
-  // 4. DNS-resolve in batches
-  const allResults = await resolveInBatches(fqdnList, cleanDomain, 8);
+  // 4. DNS-resolve in batches of 25 concurrently
+  const allResults = await resolveInBatches(fqdnList, cleanDomain, 25);
 
   // 5. Return resolved ones first, then a handful of notable unresolved ones
   let resolved = allResults.filter(r => r.resolved);

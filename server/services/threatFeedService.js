@@ -161,24 +161,22 @@ async function downloadFeed(name, url, destPath, options = {}) {
 
 // Download/refresh all feeds
 exports.refreshFeeds = async () => {
-  console.log('Refreshing threat-intelligence community feeds...');
+  console.log('Refreshing threat-intelligence community feeds in parallel...');
   
-  // URLhaus (CSV recent)
-  await downloadFeed('urlhaus', 'https://urlhaus.abuse.ch/downloads/csv_recent/', PATH_URLHAUS, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-  });
+  await Promise.allSettled([
+    downloadFeed('urlhaus', 'https://urlhaus.abuse.ch/downloads/csv_recent/', PATH_URLHAUS, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    }),
+    downloadFeed('phishtank', 'https://data.phishtank.com/data/online-valid.csv', PATH_PHISHTANK, {
+      headers: { 'User-Agent': 'phishtank/sentinel-threat-scanner' }
+    }),
+    downloadFeed('openphish', 'https://openphish.com/feed.txt', PATH_OPENPHISH, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    })
+  ]);
+
   loadUrlhaus();
-
-  // PhishTank (online CSV)
-  await downloadFeed('phishtank', 'https://data.phishtank.com/data/online-valid.csv', PATH_PHISHTANK, {
-    headers: { 'User-Agent': 'phishtank/sentinel-threat-scanner' }
-  });
   loadPhishTank();
-
-  // OpenPhish (plain text feed)
-  await downloadFeed('openphish', 'https://openphish.com/feed.txt', PATH_OPENPHISH, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-  });
   loadOpenPhish();
 };
 

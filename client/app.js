@@ -13,6 +13,15 @@ let serverCases = [];   // Local cache of server cases
 let isSimplifiedNotesMode = false;
 let isBatchMode = false;
 
+function getClientId() {
+  let clientId = localStorage.getItem('sentinel_client_id');
+  if (!clientId) {
+    clientId = 'client_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem('sentinel_client_id', clientId);
+  }
+  return clientId;
+}
+
 function initTabs() {
   tabs.forEach(tab => {
     const btn = document.getElementById(tab.buttonId);
@@ -126,7 +135,9 @@ async function switchTab(buttonId) {
 // Server Database API integration
 async function fetchCasesFromServer() {
   try {
-    const response = await fetch('/api/cases');
+    const response = await fetch('/api/cases', {
+      headers: { 'x-client-id': getClientId() }
+    });
     if (response.ok) {
       serverCases = await response.json();
     }
@@ -138,7 +149,10 @@ async function fetchCasesFromServer() {
 async function clearArchiveOnServer() {
   if (confirm("Are you sure you want to clear all archived case files from the server database?")) {
     try {
-      const response = await fetch('/api/cases', { method: 'DELETE' });
+      const response = await fetch('/api/cases', {
+        method: 'DELETE',
+        headers: { 'x-client-id': getClientId() }
+      });
       if (response.ok) {
         serverCases = [];
         renderArchiveGrid();
@@ -365,7 +379,10 @@ async function runSingleScan(urlInput) {
   try {
     const response = await fetch('/api/scan', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': getClientId()
+      },
       body: JSON.stringify({
         url: urlInput,
         userAgent: config.userAgent,
@@ -429,7 +446,10 @@ async function runBatchScan(urls) {
   try {
     const response = await fetch('/api/scan/batch', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': getClientId()
+      },
       body: JSON.stringify({ urls })
     });
 
@@ -502,7 +522,9 @@ function renderBatchResults(results) {
     btn.addEventListener('click', async (e) => {
       const id = e.target.getAttribute('data-id');
       try {
-        const caseResponse = await fetch(`/api/cases/${id}`);
+        const caseResponse = await fetch(`/api/cases/${id}`, {
+          headers: { 'x-client-id': getClientId() }
+        });
         if (caseResponse.ok) {
           const caseFile = await caseResponse.json();
           currentCase = caseFile;
@@ -531,7 +553,10 @@ document.getElementById('watch-case-btn').addEventListener('click', async () => 
   try {
     const response = await fetch(`/api/cases/${currentCase.id}/watch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': getClientId()
+      },
       body: JSON.stringify({ watched: isNowWatched })
     });
 
@@ -573,7 +598,10 @@ document.getElementById('report-feedback-btn').addEventListener('click', async (
   try {
     const response = await fetch(`/api/cases/${currentCase.id}/feedback`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': getClientId()
+      },
       body: JSON.stringify({ feedback: isNowInaccurate })
     });
 
@@ -791,6 +819,51 @@ function displayCaseReport(caseFile) {
     });
   }
 
+  // Render Security Headers Scorecard
+  const headersGrid = document.getElementById('security-headers-grid');
+  const headersBadge = document.getElementById('security-headers-score-badge');
+  if (headersGrid && headersBadge) {
+    headersGrid.innerHTML = '';
+    const headersAudit = caseFile.securityHeadersAudit || {
+      hsts: { name: 'HSTS', present: !caseFile.reasons.some(r => r.includes('HSTS')), desc: 'Enforces HTTPS encryption' },
+      csp: { name: 'CSP', present: !caseFile.reasons.some(r => r.includes('Content-Security-Policy')), desc: 'Prevents XSS & data injection' },
+      xFrameOptions: { name: 'X-Frame-Options', present: !caseFile.reasons.some(r => r.includes('X-Frame-Options')), desc: 'Clickjacking protection' },
+      xContentTypeOptions: { name: 'X-Content-Type', present: !caseFile.reasons.some(r => r.includes('X-Content-Type-Options')), desc: 'MIME-sniffing prevention' }
+    };
+
+    const headerItems = Object.values(headersAudit).filter(item => item && item.name);
+    let secureCount = 0;
+
+    headerItems.forEach(item => {
+      if (item.present) secureCount++;
+      const card = document.createElement('div');
+      const isOk = item.present;
+      card.className = `p-2 rounded border text-[11px] flex flex-col justify-between transition-all ${
+        isOk ? 'bg-green-500/10 border-green-500/30 text-green-800' : 'bg-red-500/10 border-red-500/30 text-red-800'
+      }`;
+
+      card.innerHTML = `
+        <div class="flex items-center justify-between font-bold">
+          <span>${item.name}</span>
+          <span class="text-[9px] px-1.5 py-0.2 rounded uppercase ${isOk ? 'bg-green-200 text-green-900' : 'bg-red-200 text-red-900'}">
+            ${isOk ? 'PASS' : 'MISSING'}
+          </span>
+        </div>
+        <div class="text-[9px] opacity-75 mt-1 truncate" title="${item.desc || ''}">
+          ${item.desc || (isOk ? 'Header configured' : 'Vulnerable')}
+        </div>
+      `;
+      headersGrid.appendChild(card);
+    });
+
+    const total = headerItems.length || 4;
+    headersBadge.textContent = `${secureCount}/${total} PASS`;
+    headersBadge.className = `font-data-mono text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+      secureCount === total ? 'bg-green-100 text-green-800 border border-green-300' :
+      secureCount >= 2 ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 'bg-red-100 text-red-800 border border-red-300'
+    }`;
+  }
+
 
 
   // Redirect chain trail display
@@ -978,7 +1051,10 @@ function openCaseReport(c) {
     c.alert = false;
     fetch(`/api/cases/${c.id}/watch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-client-id': getClientId()
+      },
       body: JSON.stringify({ watched: c.watched === true }) // implicitly clears alert in store updates
     });
 
@@ -1006,7 +1082,9 @@ async function refreshRegistryRecordForCase(caseFile) {
   }
 
   try {
-    const res = await fetch(`/api/cases/${caseFile.id}/registry-refresh`);
+    const res = await fetch(`/api/cases/${caseFile.id}/registry-refresh`, {
+      headers: { 'x-client-id': getClientId() }
+    });
     const data = await res.json();
     if (data.success && data.registryRecord) {
       caseFile.registryRecord = data.registryRecord;
@@ -1169,22 +1247,43 @@ function renderRegistryRecord() {
     </div>
   `;
 
+  // 4.5 Email Security Audit (SPF & DMARC)
+  const emailSec = activeCaseFile.emailSecurity || {};
+  const spfStatus = emailSec.hasSpf 
+    ? `<span class="text-green-700 font-bold">VERIFIED (SPF Configured)</span>`
+    : `<span class="text-red-700 font-bold">VULNERABLE (Missing SPF Record)</span>`;
+  const dmarcStatus = emailSec.hasDmarc 
+    ? `<span class="text-green-700 font-bold">VERIFIED (DMARC Configured)</span>`
+    : `<span class="text-red-700 font-bold">VULNERABLE (Missing DMARC Enforcement)</span>`;
+
+  let emailSecurityHtml = `
+    <div class="mt-6">
+      <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">EMAIL SECURITY (SPOOF PROTECTION)</h3>
+      ${formatDotRow('SPF Policy', spfStatus)}
+      ${formatDotRow('DMARC Policy', dmarcStatus)}
+      ${emailSec.spfRecord ? formatDotRow('SPF Record', emailSec.spfRecord) : ''}
+      ${emailSec.dmarcRecord ? formatDotRow('DMARC Record', emailSec.dmarcRecord) : ''}
+    </div>
+  `;
+
   // 5. Redirect chain pathway listing
   const chain = activeCaseFile.redirectChain || [activeCaseFile.url];
   const redirectsListHtml = chain.map((url, i) => {
     let hostname = url;
     try { hostname = new URL(url).hostname || url; } catch (e) { }
     return `[Hop #${i + 1}] ${hostname}`;
-  }).join(' → ');
+  }).join('<br>');
 
-  let redirectHtml = `
-    <div class="bg-surface-variant border border-outline-variant p-4 rounded mt-6">
-      <h3 class="font-bold text-xs text-gray-600 mb-2 uppercase tracking-wide">REDIRECT PATHWAY</h3>
-      <div class="text-xs break-all leading-normal text-gray-700 font-data-mono">${redirectsListHtml}</div>
+  let redirectChainHtml = `
+    <div class="mt-6">
+      <h3 class="font-bold border-b border-black pb-1 mb-3 text-xs text-gray-800 uppercase tracking-wide">REDIRECT PATHWAY</h3>
+      <div class="text-xs font-mono text-gray-700 bg-gray-100 p-2 border border-gray-300 rounded overflow-x-auto">
+        ${redirectsListHtml}
+      </div>
     </div>
   `;
 
-  content.innerHTML = registrationHtml + dnsHtml + networkHtml + certHtml + redirectHtml;
+  content.innerHTML = registrationHtml + dnsHtml + networkHtml + certHtml + emailSecurityHtml + redirectChainHtml;
 }
 
 // App Initialization

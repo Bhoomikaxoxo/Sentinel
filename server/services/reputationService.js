@@ -187,15 +187,40 @@ exports.checkReputation = async (urlString) => {
     
     registrarName = rdapRecord.registrar;
 
-    const dnsRecords = await exports.getDnsRecords(hostname, 'A');
+    const apex = getApexDomain(hostname) || hostname;
+    const [dnsRecords, txtRecords, dmarcRecords] = await Promise.all([
+      exports.getDnsRecords(hostname, 'A'),
+      exports.getDnsRecords(apex, 'TXT'),
+      exports.getDnsRecords(`_dmarc.${apex}`, 'TXT')
+    ]);
+
     if (dnsRecords.length === 0) {
       factors.push({ id: 'dns_resolution_failure' });
     }
 
-    const result = { factors, domainAgeDays, registrarName };
+    const hasSpf = txtRecords.some(r => r.toLowerCase().includes('v=spf1'));
+    const hasDmarc = dmarcRecords.some(r => r.toLowerCase().includes('v=dmarc1')) || 
+                     txtRecords.some(r => r.toLowerCase().includes('v=dmarc1'));
+
+    if (!hasSpf) {
+      factors.push({ id: 'missing_spf' });
+    }
+    if (!hasDmarc) {
+      factors.push({ id: 'missing_dmarc' });
+    }
+
+    const emailSecurity = {
+      apexDomain: apex,
+      hasSpf,
+      hasDmarc,
+      spfRecord: txtRecords.find(r => r.toLowerCase().includes('v=spf1')) || null,
+      dmarcRecord: dmarcRecords.find(r => r.toLowerCase().includes('v=dmarc1')) || null
+    };
+
+    const result = { factors, domainAgeDays, registrarName, emailSecurity };
     cache.set(cacheKey, result);
     return result;
   } catch (e) {
-    return { factors, domainAgeDays, registrarName };
+    return { factors, domainAgeDays, registrarName, emailSecurity: { hasSpf: false, hasDmarc: false } };
   }
 };

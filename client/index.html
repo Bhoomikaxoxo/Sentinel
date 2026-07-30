@@ -386,6 +386,23 @@
                       <!-- Dynamically rendered pinned evidence tags -->
                     </div>
                   </div>
+
+                  <!-- SECURITY HEADERS SCORECARD -->
+                  <div class="mt-6 bg-secondary-container/20 p-4 border border-outline-variant/40 rounded shadow-sm" id="security-headers-section">
+                    <div class="flex items-center justify-between mb-3 border-b border-primary/20 pb-2">
+                      <h3 class="font-data-mono text-label-sm text-primary uppercase font-bold flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[16px]">verified_user</span>
+                        <span>SECURITY HEADERS AUDIT</span>
+                      </h3>
+                      <span id="security-headers-score-badge" class="font-data-mono text-[10px] px-2 py-0.5 rounded font-bold uppercase">
+                        -- / --
+                      </span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs font-data-mono" id="security-headers-grid">
+                      <!-- Rendered dynamically in app.js -->
+                    </div>
+                  </div>
                 </div>
               </div>
 
