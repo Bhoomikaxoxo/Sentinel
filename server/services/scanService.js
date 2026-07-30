@@ -122,6 +122,12 @@ exports.scanUrl = async (urlString, options = {}) => {
     ? axios.post(`${workerUrl}/render`, { url, userAgent, timeout }, { timeout: renderTimeout })
     : Promise.reject(new Error('No external render worker configured'));
 
+  // thum.io screenshot API — runs in parallel, free, no API key needed
+  const screenshotApiPromise = axios.get(
+    `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`,
+    { responseType: 'arraybuffer', timeout: 7000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)' } }
+  );
+
   const [
     reputationRes,
     certRes,
@@ -130,7 +136,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     registryRes,
     portsRes,
     subdomainsRes,
-    sslInfoRes
+    sslInfoRes,
+    screenshotApiRes
   ] = await Promise.allSettled([
     reputationService.checkReputation(url),
     certTransparencyService.checkCertTransparency(hostname),
@@ -139,7 +146,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     registryService.buildRegistryRecord(hostname),
     portScanner.scanPorts(hostname),
     subdomainResolver.resolveSubdomains(hostname),
-    getSslInfo(hostname)
+    getSslInfo(hostname),
+    screenshotApiPromise
   ]);
 
   // Process Reputation (WHOIS / RDAP)
@@ -201,10 +209,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     const { html, screenshot } = renderRes.value.data;
     screenshotBase64 = screenshot;
     domHtml = html;
-    if (screenshot) log(`Active probe: Snapshot image successfully captured.`);
+    if (screenshot) log(`Active probe: Snapshot image successfully captured via Puppeteer.`);
   } else {
-    log(`Active probe: Sandbox worker unavailable. Executing direct HTTP DOM inspection + screenshot API...`);
-
     // Fetch DOM via direct HTTP
     try {
       const httpRes = await axios.get(url, {
@@ -217,24 +223,21 @@ exports.scanUrl = async (urlString, options = {}) => {
         log(`Active probe: Direct HTTP DOM inspection completed (${domHtml.length} bytes).`);
       }
     } catch (httpErr) {
-      log(`Active probe: Direct HTTP DOM inspection note - ${httpErr.message}`);
+      log(`Active probe: HTTP DOM inspection note - ${httpErr.message}`);
     }
+  }
 
-    // Fetch screenshot via thum.io (free, no API key required)
-    try {
-      const screenshotUrl = `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`;
-      const imgRes = await axios.get(screenshotUrl, {
-        responseType: 'arraybuffer',
-        timeout: 8000,
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SentinelAI/1.0)' }
-      });
-      if (imgRes && imgRes.data && imgRes.data.byteLength > 5000) {
-        screenshotBase64 = Buffer.from(imgRes.data).toString('base64');
-        log(`Active probe: Screenshot captured via thum.io API (${Math.round(imgRes.data.byteLength / 1024)}KB).`);
-      }
-    } catch (imgErr) {
-      log(`Active probe: Screenshot API unavailable - ${imgErr.message}`);
+  // Use thum.io screenshot (already fetched in parallel above)
+  if (!screenshotBase64 && screenshotApiRes.status === 'fulfilled') {
+    const imgData = screenshotApiRes.value?.data;
+    if (imgData && imgData.byteLength > 5000) {
+      screenshotBase64 = Buffer.from(imgData).toString('base64');
+      log(`Active probe: Screenshot captured via thum.io API (${Math.round(imgData.byteLength / 1024)}KB).`);
+    } else {
+      log(`Active probe: Screenshot API returned no usable image.`);
     }
+  } else if (!screenshotBase64) {
+    log(`Active probe: Screenshot API unavailable - ${screenshotApiRes.reason?.message || 'unknown'}`);
   }
 
   // Process Registry Record & Mapper
