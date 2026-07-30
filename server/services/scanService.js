@@ -113,8 +113,13 @@ exports.scanUrl = async (urlString, options = {}) => {
 
   // 3. Concurrent Parallel Probes (WHOIS, SSL, Headers, Browser Render, Registry, Mapper)
   log(`Concurrent Forensics: Executing parallel network probes...`);
-  const renderTimeout = timeout ? parseInt(timeout) + 3000 : 18000;
-  const workerUrl = process.env.RENDER_WORKER_URL || 'http://127.0.0.1:4000';
+  const isVercel = !!process.env.VERCEL;
+  const workerUrl = process.env.RENDER_WORKER_URL || (isVercel ? null : 'http://127.0.0.1:4000');
+  const renderTimeout = isVercel ? 2000 : (timeout ? parseInt(timeout) + 3000 : 18000);
+
+  const renderPromise = workerUrl
+    ? axios.post(`${workerUrl}/render`, { url, userAgent, timeout }, { timeout: renderTimeout })
+    : Promise.reject(new Error('No external render worker configured'));
 
   const [
     reputationRes,
@@ -129,7 +134,7 @@ exports.scanUrl = async (urlString, options = {}) => {
     reputationService.checkReputation(url),
     certTransparencyService.checkCertTransparency(hostname),
     securityHeaders.analyzeHeaders(url),
-    axios.post(`${workerUrl}/render`, { url, userAgent, timeout }, { timeout: renderTimeout }),
+    renderPromise,
     registryService.buildRegistryRecord(hostname),
     portScanner.scanPorts(hostname),
     subdomainResolver.resolveSubdomains(hostname),
@@ -188,7 +193,7 @@ exports.scanUrl = async (urlString, options = {}) => {
     log(`Secure Transport audit error: ${headerRes.reason?.message || 'Header request failed'}`);
   }
 
-  // Process Active browser rendering via Puppeteer Render Worker
+  // Process Active browser rendering via Puppeteer Render Worker or HTTP Fallback
   let screenshotBase64 = null;
   let domHtml = null;
   if (renderRes.status === 'fulfilled' && renderRes.value?.data) {
@@ -197,8 +202,20 @@ exports.scanUrl = async (urlString, options = {}) => {
     domHtml = html;
     if (screenshot) log(`Active probe: Snapshot image successfully captured.`);
   } else {
-    log(`Active probe: Sandboxed connection failed - ${renderRes.reason?.message || 'Render failed'}`);
-    factors.push({ id: 'dom_analysis_failed' });
+    log(`Active probe: Sandbox worker unavailable. Executing direct HTTP DOM inspection...`);
+    try {
+      const httpRes = await axios.get(url, {
+        headers: { 'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+        timeout: 4000,
+        maxRedirects: 5
+      });
+      if (httpRes && httpRes.data) {
+        domHtml = typeof httpRes.data === 'string' ? httpRes.data : JSON.stringify(httpRes.data);
+        log(`Active probe: Direct HTTP DOM inspection completed (${domHtml.length} bytes).`);
+      }
+    } catch (httpErr) {
+      log(`Active probe: Direct HTTP DOM inspection note - ${httpErr.message}`);
+    }
   }
 
   // Process Registry Record & Mapper

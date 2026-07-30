@@ -410,17 +410,11 @@ async function runSingleScan(urlInput) {
     }, 2000);
 
   } catch (error) {
-    const errorMsg = `[${new Date().toISOString().substring(11, 19)}] ERROR: Threat sweep failed to complete. Server unavailable.`;
+    const errorMsg = `[${new Date().toISOString().substring(11, 19)}] ERROR: Threat sweep failed (${error.message}). Check target connection or backend status.`;
     const errDiv = document.createElement('div');
-    errDiv.className = 'font-data-mono text-sm py-1 text-error';
+    errDiv.className = 'font-data-mono text-sm py-1 text-error font-bold';
     errDiv.textContent = errorMsg;
     terminal.appendChild(errDiv);
-
-    alert("Investigation aborted. Verify that both the server and worker are running.");
-    btn.textContent = originalText;
-    btn.disabled = false;
-    btn.classList.remove('opacity-50', 'pointer-events-none');
-    switchTab('nav-dashboard');
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
