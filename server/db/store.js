@@ -2,7 +2,9 @@ const fs = require('fs');
 const fsPromises = require('fs').promises;
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'cases.json');
+const DB_PATH = process.env.VERCEL
+  ? path.join('/tmp', 'cases.json')
+  : path.join(__dirname, 'cases.json');
 
 // In-memory cache of case records
 let casesCache = null;

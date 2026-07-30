@@ -19,11 +19,13 @@ const monitorService = require('./services/monitorService');
 
 // Initialize threat intelligence feeds
 threatFeedService.initFeeds();
-threatFeedService.startScheduler();
+if (!process.env.VERCEL) {
+  threatFeedService.startScheduler();
+  monitorService.startMonitoring();
 
-// Start background watchlist monitoring
-monitorService.startMonitoring();
+  app.listen(PORT, () => {
+    console.log(`Sentinel AI Server running on port ${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`Sentinel AI Server running on port ${PORT}`);
-});
+module.exports = app;
