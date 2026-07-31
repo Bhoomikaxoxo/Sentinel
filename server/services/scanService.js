@@ -471,6 +471,7 @@ exports.scanUrl = async (urlString, options = {}) => {
   const caseFile = {
     id: caseId,
     timestamp: formattedTime,
+    createdAt: new Date().toISOString(),
     url: urlString,
     score: scoreResult.score,
     reasons: scoreResult.reasons,

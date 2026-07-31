@@ -195,8 +195,8 @@ async function clearArchiveOnServer() {
       await fetch('/api/cases', {
         method: 'DELETE',
         headers: { 'x-client-id': getClientId() }
-      }).catch(() => {});
-    } catch (_) {}
+      }).catch(() => { });
+    } catch (_) { }
 
     localStorage.removeItem(LOCAL_STORAGE_CASES_KEY);
     serverCases = [];
@@ -456,7 +456,7 @@ async function runSingleScan(urlInput) {
       try {
         const errData = await response.json();
         if (errData && errData.error) errMsg = errData.error;
-      } catch (_) {}
+      } catch (_) { }
       throw new Error(errMsg);
     }
     const caseFile = await response.json();
@@ -468,6 +468,7 @@ async function runSingleScan(urlInput) {
     serverCases.unshift(caseFile);
     saveLocalCases(serverCases);
     updateDashboardStats();
+    renderArchiveGrid();
 
     // Live print case logs in console tab
     renderLiveLogs(caseFile.logs || []);
@@ -1357,7 +1358,7 @@ function renderRegistryRecord() {
         const cleanUrl = sc.url.replace(/^https?:\/\//, '');
         const badgeColor = sc.score < 50 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : (sc.score < 80 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30');
         const verdictText = sc.score < 50 ? 'FLAGGED' : (sc.score < 80 ? 'SUSPICIOUS' : 'SAFE');
-        
+
         return `
           <div class="custom-dropdown-item px-3 py-2.5 flex items-center justify-between hover:bg-[#1a2b3c] cursor-pointer transition-colors ${isSelected ? 'bg-[#142332] text-[#4ade80] font-bold' : 'text-gray-200'}" data-id="${sc.id}">
             <div class="flex items-center gap-2 truncate flex-1 mr-2">
@@ -1586,7 +1587,7 @@ window.addEventListener('DOMContentLoaded', async () => {
           saveCaseToDevice(targetCase);
           serverCases = saveCaseToDevice(targetCase);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     if (targetCase) {
       currentCase = targetCase;
@@ -1602,18 +1603,30 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('scanner-placeholder').classList.remove('hidden');
 });
 
+function parseCaseDate(c) {
+  if (!c) return new Date();
+  if (c.createdAt) {
+    const d = new Date(c.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (c.timestamp) {
+    const cleaned = c.timestamp.replace(' // ', ' ').replace('HRS', '').trim();
+    const d = new Date(cleaned);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
+
 function updateDashboardStats() {
   // 1. Total Open Cases
   const openCasesCount = serverCases.length;
   document.getElementById('stats-open-cases').textContent = openCasesCount;
 
   // 2. Flagged Today
-  // Count cases created today (local date matches current local date) with score < 50
-  const todayStr = new Date().toDateString(); // e.g. "Mon Jul 06 2026"
+  const todayStr = new Date().toDateString();
   const flaggedToday = serverCases.filter(c => {
-    if (!c.createdAt) return false;
-    const caseDateStr = new Date(c.createdAt).toDateString();
-    return caseDateStr === todayStr && c.score < 50;
+    const caseDate = parseCaseDate(c);
+    return caseDate.toDateString() === todayStr && (c.score || 0) < 50;
   }).length;
   document.getElementById('stats-flagged-today').textContent = String(flaggedToday).padStart(2, '0');
 
@@ -1693,6 +1706,7 @@ function updateDashboardStats() {
 
 function renderIntakeLog() {
   const container = document.getElementById('intake-log-list');
+  if (!container) return;
   container.innerHTML = '';
 
   const recent = serverCases.slice(0, 6);
@@ -1707,7 +1721,7 @@ function renderIntakeLog() {
   }
 
   recent.forEach(c => {
-    const dateObj = c.createdAt ? new Date(c.createdAt) : new Date();
+    const dateObj = parseCaseDate(c);
     const timeStr = `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}:${String(dateObj.getSeconds()).padStart(2, '0')}`;
 
     // Determine priority badge and coloring
