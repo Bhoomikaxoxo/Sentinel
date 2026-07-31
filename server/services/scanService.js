@@ -152,7 +152,7 @@ exports.scanUrl = async (urlString, options = {}) => {
   ] = await Promise.allSettled([
     reputationService.checkReputation(url),
     certTransparencyService.checkCertTransparency(hostname),
-    securityHeaders.analyzeHeaders(url),
+    securityHeaders.analyzeHeaders(url, { timeout, userAgent }),
     renderPromise,
     registryService.buildRegistryRecord(hostname),
     portScanner.scanPorts(hostname),
@@ -225,9 +225,10 @@ exports.scanUrl = async (urlString, options = {}) => {
   } else {
     // Fetch DOM via direct HTTP
     try {
+      const httpTimeout = timeout ? (parseInt(timeout) < 100 ? parseInt(timeout) * 1000 : parseInt(timeout)) : 4000;
       const httpRes = await axios.get(url, {
         headers: { 'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-        timeout: 4000,
+        timeout: httpTimeout,
         maxRedirects: 5
       });
       if (httpRes && httpRes.data) {

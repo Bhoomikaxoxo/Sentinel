@@ -1,15 +1,22 @@
 const axios = require('axios');
 
-exports.analyzeHeaders = async (urlString) => {
+exports.analyzeHeaders = async (urlString, options = {}) => {
   const factors = [];
   const redirectChain = [];
   let finalUrl = urlString;
+
+  const timeoutMs = options.timeout ? (parseInt(options.timeout) < 100 ? parseInt(options.timeout) * 1000 : parseInt(options.timeout)) : 5000;
+  const reqHeaders = {};
+  if (options.userAgent) {
+    reqHeaders['User-Agent'] = options.userAgent;
+  }
 
   try {
     const response = await axios.get(urlString, {
       maxRedirects: 5,
       validateStatus: () => true, // resolve all status codes
-      timeout: 5000,
+      timeout: timeoutMs,
+      headers: reqHeaders
     });
 
     finalUrl = response.request.res.responseUrl || response.config.url;

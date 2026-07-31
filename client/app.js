@@ -129,6 +129,8 @@ async function switchTab(buttonId) {
     renderRegistryRecord();
   } else if (buttonId === 'nav-mapper') {
     renderInternetMap();
+  } else if (buttonId === 'nav-settings') {
+    initSettings();
   }
 }
 
@@ -178,24 +180,18 @@ async function fetchCasesFromServer() {
     console.error('Failed to load cases from server database:', err);
   }
 
-  // Deduplicate and merge local device cases + server cases
-  const caseMap = new Map();
-  if (Array.isArray(localCases)) {
-    localCases.forEach(c => { if (c && c.id) caseMap.set(c.id, c); });
-  }
-  if (Array.isArray(serverFetched)) {
-    serverFetched.forEach(c => { if (c && c.id) caseMap.set(c.id, c); });
-  }
+  // Merge local & server cases
+  const mergedMap = new Map();
+  localCases.forEach(c => { if (c && c.id) mergedMap.set(c.id, c); });
+  serverFetched.forEach(c => { if (c && c.id) mergedMap.set(c.id, c); });
 
-  serverCases = Array.from(caseMap.values()).sort((a, b) => {
-    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-  });
-
+  serverCases = Array.from(mergedMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   saveLocalCases(serverCases);
+  updateDashboardStats();
 }
 
 async function clearArchiveOnServer() {
-  if (confirm("Are you sure you want to clear all archived case files from your device and database?")) {
+  if (confirm("Are you sure you want to clear your local case history archive?")) {
     try {
       await fetch('/api/cases', {
         method: 'DELETE',
@@ -230,38 +226,61 @@ function getSettings() {
   };
 }
 
+let settingsToastTimer = null;
+function showSettingsToast(msg) {
+  const toast = document.getElementById('settings-toast-banner');
+  const text = document.getElementById('settings-toast-text');
+  if (!toast || !text) return;
+  if (settingsToastTimer) clearTimeout(settingsToastTimer);
+  text.textContent = msg;
+  toast.classList.remove('hidden');
+  settingsToastTimer = setTimeout(() => {
+    toast.classList.add('hidden');
+  }, 3500);
+}
+
 function initSettings() {
   const config = getSettings();
 
-  // Populate UI inputs
-  document.getElementById('setting-worker-url').value = config.workerUrl;
-  document.getElementById('setting-timeout').value = config.timeout;
-  document.getElementById('setting-timeout-val').textContent = `${config.timeout}s`;
-  document.getElementById('setting-user-agent').value = config.userAgent;
+  const workerInput = document.getElementById('setting-worker-url');
+  const timeoutInput = document.getElementById('setting-timeout');
+  const timeoutVal = document.getElementById('setting-timeout-val');
+  const userAgentInput = document.getElementById('setting-user-agent');
+  const saveBtn = document.getElementById('settings-save-btn');
+  const resetBtn = document.getElementById('settings-reset-btn');
 
-  // Slider update event
-  document.getElementById('setting-timeout').addEventListener('input', (e) => {
-    document.getElementById('setting-timeout-val').textContent = `${e.target.value}s`;
-  });
+  if (workerInput) workerInput.value = config.workerUrl + ' (Cloud Fallbacks Active)';
+  if (timeoutInput) timeoutInput.value = config.timeout;
+  if (timeoutVal) timeoutVal.textContent = `${config.timeout}s`;
+  if (userAgentInput) userAgentInput.value = config.userAgent;
 
-  // Save Settings
-  document.getElementById('settings-save-btn').addEventListener('click', () => {
-    localStorage.setItem('sentinel_worker_url', document.getElementById('setting-worker-url').value.trim());
-    localStorage.setItem('sentinel_timeout', document.getElementById('setting-timeout').value);
-    localStorage.setItem('sentinel_user_agent', document.getElementById('setting-user-agent').value.trim());
-    alert('System Configuration Saved.');
-  });
+  if (timeoutInput && !timeoutInput.dataset.bound) {
+    timeoutInput.dataset.bound = 'true';
+    timeoutInput.addEventListener('input', (e) => {
+      if (timeoutVal) timeoutVal.textContent = `${e.target.value}s`;
+    });
+  }
 
-  // Reset Settings
-  document.getElementById('settings-reset-btn').addEventListener('click', () => {
-    if (confirm("Reset configuration settings to factory defaults?")) {
+  if (saveBtn && !saveBtn.dataset.bound) {
+    saveBtn.dataset.bound = 'true';
+    saveBtn.addEventListener('click', () => {
+      if (timeoutInput) localStorage.setItem('sentinel_timeout', timeoutInput.value);
+      if (userAgentInput) localStorage.setItem('sentinel_user_agent', userAgentInput.value.trim());
+      showSettingsToast('SYSTEM CONFIGURATION UPDATED & PERSISTED TO LOCAL STORAGE');
+    });
+  }
+
+  if (resetBtn && !resetBtn.dataset.bound) {
+    resetBtn.dataset.bound = 'true';
+    resetBtn.addEventListener('click', () => {
       localStorage.setItem('sentinel_worker_url', DEFAULT_SETTINGS.workerUrl);
       localStorage.setItem('sentinel_timeout', DEFAULT_SETTINGS.timeout);
       localStorage.setItem('sentinel_user_agent', DEFAULT_SETTINGS.userAgent);
 
-      initSettings(); // Re-populate UI
-    }
-  });
+      initSettings();
+      showSettingsToast('SYSTEM CONFIGURATION RESTORED TO FACTORY DEFAULTS');
+    });
+  }
 }
 
 
@@ -2713,6 +2732,12 @@ function updateInvestigatorNotes(caseFile) {
     notesText.textContent = caseFile.notes;
   }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  initTabs();
+  initSettings();
+  fetchCasesFromServer();
+});
 
 
 

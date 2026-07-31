@@ -844,15 +844,27 @@
             class="bg-paper paper-texture border border-outline-variant p-folder-padding shadow-[8px_8px_0px_0px_rgba(0,0,0,0.4)] max-w-2xl space-y-6">
 
 
-            <!-- Puppeteer worker URL -->
+            <!-- Settings Save Feedback Banner -->
+            <div id="settings-toast-banner"
+              class="bg-green-600 text-white font-data-mono text-xs p-3 rounded shadow-md hidden flex items-center justify-between transition-all duration-300">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                <span id="settings-toast-text">SYSTEM CONFIGURATION UPDATED & PERSISTED TO DEVICE STORAGE</span>
+              </div>
+            </div>
+
+            <!-- Puppeteer worker URL (Dev-only / Inactive on Vercel) -->
             <div class="flex flex-col gap-2 border-b border-primary/20 pb-4">
-              <label for="setting-worker-url" class="font-data-mono text-label-sm text-primary uppercase">Puppeteer
-                Render Endpoint</label>
-              <p class="font-body-md text-ink-variant">Specify the URL coordinates for the sandboxed Puppeteer browser
-                container.</p>
-              <input type="text" id="setting-worker-url"
-                class="bg-paper-variant border border-outline-variant font-data-mono text-label-sm p-3 focus:ring-1 focus:ring-primary w-full"
-                value="http://127.0.0.1:4000" />
+              <div class="flex items-center justify-between">
+                <label for="setting-worker-url" class="font-data-mono text-label-sm text-primary uppercase flex items-center gap-2">
+                  <span>Puppeteer Render Endpoint</span>
+                  <span class="text-[9px] bg-outline-variant/40 text-gray-500 px-1.5 py-0.5 rounded font-normal">[INACTIVE / DEV-ONLY]</span>
+                </label>
+              </div>
+              <p class="font-body-md text-ink-variant">Local container URL (unused in serverless Vercel deployment; cloud fallbacks active).</p>
+              <input type="text" id="setting-worker-url" disabled
+                class="bg-paper-variant/50 opacity-60 border border-outline-variant font-data-mono text-label-sm p-3 w-full cursor-not-allowed"
+                value="http://127.0.0.1:4000 (Cloud Fallbacks Active)" />
             </div>
 
             <!-- Default Scan Timeout slider -->
@@ -861,7 +873,7 @@
                 <label for="setting-timeout" class="font-data-mono text-label-sm text-primary uppercase">Navigation
                   Timeout</label>
                 <span id="setting-timeout-val"
-                  class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2">10s</span>
+                  class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2 font-bold">10s</span>
               </div>
               <p class="font-body-md text-ink-variant">Set the threshold duration (in seconds) for following redirects
                 and network idle settling.</p>
@@ -887,7 +899,7 @@
                 [RESET DEFAULTS]
               </button>
               <button id="settings-save-btn"
-                class="bg-primary text-background font-data-mono text-label-sm py-3 px-6 hover:bg-primary-container shadow-md active:translate-y-[1px] transition-all">
+                class="bg-primary text-background font-data-mono text-label-sm py-3 px-6 hover:bg-primary-container shadow-md active:translate-y-[1px] transition-all font-bold">
                 [SAVE CONFIGURATION]
               </button>
             </div>
