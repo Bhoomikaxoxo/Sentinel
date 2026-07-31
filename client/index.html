@@ -148,11 +148,6 @@
           <span class="material-symbols-outlined text-[18px]">hub</span>
           <span>INTERNET MAPPER</span>
         </button>
-        <button id="nav-settings"
-          class="sidebar-nav-inactive w-full flex items-center gap-3 px-4 py-3 font-data-mono text-[11px] uppercase tracking-wider transition-all">
-          <span class="material-symbols-outlined text-[18px]">settings</span>
-          <span>SYSTEM SETTINGS</span>
-        </button>
       </nav>
 
       <!-- Footer -->
@@ -832,81 +827,7 @@
           </div>
         </div>
 
-        <!-- VIEW 5: SYSTEM SETTINGS -->
-        <div id="view-section-settings" class="space-y-gutter hidden">
-          <div class="mb-6">
-            <h2 class="font-display-lg text-primary text-[56px] leading-none mb-2">SYSTEM SETTINGS</h2>
-            <p class="font-body-md text-ink-variant italic">Configure diagnostic profiles, target timeouts, and visual
-              theme preferences.</p>
-          </div>
-
-          <div
-            class="bg-paper paper-texture border border-outline-variant p-folder-padding shadow-[8px_8px_0px_0px_rgba(0,0,0,0.4)] max-w-2xl space-y-6">
-
-
-            <!-- Settings Save Feedback Banner -->
-            <div id="settings-toast-banner"
-              class="bg-green-600 text-white font-data-mono text-xs p-3 rounded shadow-md hidden flex items-center justify-between transition-all duration-300">
-              <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-[18px]">check_circle</span>
-                <span id="settings-toast-text">SYSTEM CONFIGURATION UPDATED & PERSISTED TO DEVICE STORAGE</span>
-              </div>
-            </div>
-
-            <!-- Puppeteer worker URL (Dev-only / Inactive on Vercel) -->
-            <div class="flex flex-col gap-2 border-b border-primary/20 pb-4">
-              <div class="flex items-center justify-between">
-                <label for="setting-worker-url" class="font-data-mono text-label-sm text-primary uppercase flex items-center gap-2">
-                  <span>Puppeteer Render Endpoint</span>
-                  <span class="text-[9px] bg-outline-variant/40 text-gray-500 px-1.5 py-0.5 rounded font-normal">[INACTIVE / DEV-ONLY]</span>
-                </label>
-              </div>
-              <p class="font-body-md text-ink-variant">Local container URL (unused in serverless Vercel deployment; cloud fallbacks active).</p>
-              <input type="text" id="setting-worker-url" disabled
-                class="bg-paper-variant/50 opacity-60 border border-outline-variant font-data-mono text-label-sm p-3 w-full cursor-not-allowed"
-                value="http://127.0.0.1:4000 (Cloud Fallbacks Active)" />
-            </div>
-
-            <!-- Default Scan Timeout slider -->
-            <div class="flex flex-col gap-2 border-b border-primary/20 pb-4">
-              <div class="flex justify-between items-center">
-                <label for="setting-timeout" class="font-data-mono text-label-sm text-primary uppercase">Navigation
-                  Timeout</label>
-                <span id="setting-timeout-val"
-                  class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2 font-bold">10s</span>
-              </div>
-              <p class="font-body-md text-ink-variant">Set the threshold duration (in seconds) for following redirects
-                and network idle settling.</p>
-              <input type="range" id="setting-timeout" min="5" max="30" step="1" value="10"
-                class="w-full h-2 bg-background rounded-lg appearance-none cursor-pointer focus:outline-none accent-primary" />
-            </div>
-
-            <!-- Custom User-Agent string -->
-            <div class="flex flex-col gap-2 pb-2">
-              <label for="setting-user-agent" class="font-data-mono text-label-sm text-primary uppercase">Custom
-                User-Agent Profile</label>
-              <p class="font-body-md text-ink-variant">Spoof a specific browser identity header transmitted during the
-                URL render sweep.</p>
-              <textarea id="setting-user-agent" rows="3"
-                class="bg-paper-variant border border-outline-variant font-data-mono text-label-sm p-3 focus:ring-1 focus:ring-primary w-full"
-                placeholder="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"></textarea>
-            </div>
-
-            <!-- Save/Reset action buttons -->
-            <div class="flex justify-end gap-4 pt-4 border-t border-primary/20">
-              <button id="settings-reset-btn"
-                class="font-data-mono text-label-sm text-on-surface-variant underline hover:text-primary transition-colors">
-                [RESET DEFAULTS]
-              </button>
-              <button id="settings-save-btn"
-                class="bg-primary text-background font-data-mono text-label-sm py-3 px-6 hover:bg-primary-container shadow-md active:translate-y-[1px] transition-all font-bold">
-                [SAVE CONFIGURATION]
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- VIEW 6: VISUAL INTERNET MAPPER -->
+        <!-- VIEW 5: VISUAL INTERNET MAPPER -->
         <div id="view-section-mapper" class="space-y-gutter hidden">
           <div class="mb-6 flex justify-between items-end">
             <div>

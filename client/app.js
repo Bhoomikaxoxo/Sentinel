@@ -3,8 +3,7 @@ const tabs = [
   { buttonId: 'nav-archive', sectionId: 'view-section-archive', title: 'CASE ARCHIVE' },
   { buttonId: 'nav-registry', sectionId: 'view-section-registry', title: 'REGISTRY RECORD' },
   { buttonId: 'nav-logs', sectionId: 'view-section-logs', title: 'CASE AUDIT LOGS' },
-  { buttonId: 'nav-mapper', sectionId: 'view-section-mapper', title: 'INTERNET MAPPER' },
-  { buttonId: 'nav-settings', sectionId: 'view-section-settings', title: 'SYSTEM SETTINGS' }
+  { buttonId: 'nav-mapper', sectionId: 'view-section-mapper', title: 'INTERNET MAPPER' }
 ];
 
 let activeTab = 'nav-dashboard';
