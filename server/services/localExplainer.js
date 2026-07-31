@@ -38,7 +38,8 @@ Scan Target Details:
 Instructions:
 1. Summarize the overall security posture and key risk factors in plain English.
 2. Highlight any critical vulnerabilities, domain issues, or threat feed hits.
-3. Keep the summary under 120 words. Write in a clear, authoritative, forensic tone suitable for security teams.
+3. Only classify a finding as 'risk' if it indicates suspicious, vulnerable, or anomalous behavior. Findings that are reassuring or indicate legitimacy (verified domain age, established brand, valid SSL, etc.) must be classified as 'positive', never 'risk'.
+4. Keep the summary under 120 words. Write in a clear, authoritative, forensic tone suitable for security teams.
 `;
 
   // 1. Try Gemini API first if key is available

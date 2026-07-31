@@ -444,6 +444,7 @@ exports.scanUrl = async (urlString, options = {}) => {
     url: urlString,
     score: scoreResult.score,
     reasons: scoreResult.reasons,
+    findings: scoreResult.findings || [],
     screenshot: screenshotBase64,
     redirectChain: headerResult.redirectChain || [urlString],
     priority: priority,

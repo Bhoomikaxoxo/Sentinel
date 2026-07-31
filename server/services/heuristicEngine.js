@@ -34,24 +34,51 @@ const RULE_WEIGHTS = {
   dom_analysis_failed: { score: 0, desc: "Failed to parse page DOM." }
 };
 
+exports.RULE_WEIGHTS = RULE_WEIGHTS;
+
+const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
+
+function classifySeverity(ruleScore, signalText) {
+  const lowerSignal = (signalText || '').toLowerCase();
+  const matchesPositiveKeyword = POSITIVE_KEYWORDS.some(kw => lowerSignal.includes(kw));
+
+  if (matchesPositiveKeyword) {
+    return 'positive';
+  }
+  if (ruleScore > 0) {
+    return 'positive';
+  }
+  if (ruleScore < 0) {
+    return 'risk';
+  }
+  return 'neutral';
+}
+
+exports.classifySeverity = classifySeverity;
+
 exports.calculateScore = (factors) => {
   let score = 100;
   const reasons = [];
+  const findings = [];
 
   for (const factor of factors) {
     const rule = RULE_WEIGHTS[factor.id];
     if (rule) {
       score += rule.score;
       if (rule.score !== 0) {
-        if (factor.detail) {
-          reasons.push(`${rule.desc} (Looks like ${factor.detail})`);
-        } else {
-          reasons.push(rule.desc);
-        }
+        const signalText = factor.detail ? `${rule.desc} (Looks like ${factor.detail})` : rule.desc;
+        const severity = classifySeverity(rule.score, signalText);
+
+        reasons.push(signalText);
+        findings.push({
+          signal: signalText,
+          severity: severity
+        });
       }
     }
   }
 
   score = Math.max(0, Math.min(100, score));
-  return { score, reasons };
+  return { score, reasons, findings };
 };
+

@@ -541,8 +541,19 @@ function renderBatchResults(results) {
     if (res.priority === 'ROUTINE') verdictColor = 'text-primary';
     else if (res.priority.includes('CAUTION')) verdictColor = 'text-verdict-caution';
 
-    const risks = res.reasons && res.reasons.length > 0
-      ? res.reasons.slice(0, 2).join(', ') + (res.reasons.length > 2 ? '...' : '')
+    const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
+    const rawBatchList = res.findings || res.reasons || [];
+    const filteredRiskStrings = rawBatchList.map(r => {
+      if (typeof r === 'string') return r;
+      if (r && r.severity === 'positive') return null;
+      return r ? (r.signal || r.desc || r.reason || null) : null;
+    }).filter(Boolean).filter(r => {
+      const lower = r.toLowerCase();
+      return !POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+    });
+
+    const risks = filteredRiskStrings.length > 0
+      ? filteredRiskStrings.slice(0, 2).join(', ') + (filteredRiskStrings.length > 2 ? '...' : '')
       : 'Clean / Low Risk';
 
     tr.innerHTML = `
@@ -840,21 +851,51 @@ function displayCaseReport(caseFile) {
     feedsBanner.classList.add('hidden');
   }
 
-  // Render Pinned Evidence Log Tags
+  // Render Pinned Evidence Log Tags and Positive Signals
   const reasonsList = document.getElementById('reasons-list');
+  const positiveSection = document.getElementById('positive-signals-section');
+  const positiveList = document.getElementById('positive-list');
   reasonsList.innerHTML = '';
 
-  if (caseFile.reasons.length === 0) {
+  const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
+
+  function normalizeFinding(item) {
+    if (typeof item === 'string') {
+      const lower = item.toLowerCase();
+      const isPositive = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+      return {
+        signal: item,
+        severity: isPositive ? 'positive' : 'risk'
+      };
+    } else if (item && typeof item === 'object') {
+      const signal = item.signal || item.desc || item.reason || '';
+      const lower = signal.toLowerCase();
+      const isPositiveKeyword = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+      const severity = isPositiveKeyword ? 'positive' : (item.severity || 'risk');
+      return { signal, severity };
+    }
+    return { signal: String(item), severity: 'risk' };
+  }
+
+  const rawList = (caseFile.findings && caseFile.findings.length > 0)
+    ? caseFile.findings
+    : (caseFile.reasons || []);
+
+  const normalizedFindings = rawList.map(normalizeFinding);
+  const riskFindings = normalizedFindings.filter(f => f.severity === 'risk');
+  const positiveFindings = normalizedFindings.filter(f => f.severity === 'positive');
+
+  if (riskFindings.length === 0) {
     const div = document.createElement('div');
     div.className = 'pin-tag bg-paper-container-lowest folder-texture p-3 pin-hole shadow-sm';
     div.innerHTML = `<div class="font-data-mono text-data-mono text-on-surface-variant italic">No risk indicators flagged during audit.</div>`;
     reasonsList.appendChild(div);
   } else {
-    caseFile.reasons.forEach((reason, index) => {
+    riskFindings.forEach((finding, index) => {
       const div = document.createElement('div');
       div.className = 'pin-tag bg-paper-container-lowest folder-texture p-3 pin-hole shadow-sm opacity-0 translate-x-4 transition-all duration-500';
       div.style.transitionDelay = `${index * 80}ms`;
-      div.innerHTML = `<div class="font-data-mono text-data-mono text-ink">${reason}</div>`;
+      div.innerHTML = `<div class="font-data-mono text-data-mono text-ink">${finding.signal}</div>`;
       reasonsList.appendChild(div);
 
       // Trigger fade in
@@ -862,6 +903,30 @@ function displayCaseReport(caseFile) {
         div.classList.remove('opacity-0', 'translate-x-4');
       }, 50);
     });
+  }
+
+  // Render Positive Signals
+  if (positiveSection && positiveList) {
+    positiveList.innerHTML = '';
+    if (positiveFindings.length > 0) {
+      positiveSection.classList.remove('hidden');
+      positiveFindings.forEach((finding, index) => {
+        const div = document.createElement('div');
+        div.className = 'pin-tag bg-green-500/10 border border-green-500/30 p-3 rounded shadow-sm opacity-0 translate-x-4 transition-all duration-500';
+        div.style.transitionDelay = `${index * 80}ms`;
+        div.innerHTML = `<div class="font-data-mono text-data-mono text-green-900 font-medium flex items-center gap-2">
+          <span class="material-symbols-outlined text-[16px] text-green-700">check_circle</span>
+          <span>${finding.signal}</span>
+        </div>`;
+        positiveList.appendChild(div);
+
+        setTimeout(() => {
+          div.classList.remove('opacity-0', 'translate-x-4');
+        }, 50);
+      });
+    } else {
+      positiveSection.classList.add('hidden');
+    }
   }
 
   // Render Security Headers Scorecard

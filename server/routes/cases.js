@@ -126,13 +126,48 @@ router.get('/report/:id', (req, res) => {
       stampText = 'CAUTION';
     }
 
-    const reasonsHtml = caseFile.reasons.length === 0
+    const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
+    const rawList = (caseFile.findings && caseFile.findings.length > 0)
+      ? caseFile.findings
+      : (caseFile.reasons || []);
+
+    const normalizedFindings = rawList.map(item => {
+      if (typeof item === 'string') {
+        const lower = item.toLowerCase();
+        const isPos = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+        return { signal: item, severity: isPos ? 'positive' : 'risk' };
+      } else if (item && typeof item === 'object') {
+        const signal = item.signal || item.desc || item.reason || '';
+        const lower = signal.toLowerCase();
+        const isPos = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+        return { signal, severity: isPos ? 'positive' : (item.severity || 'risk') };
+      }
+      return { signal: String(item), severity: 'risk' };
+    });
+
+    const riskFindings = normalizedFindings.filter(f => f.severity === 'risk');
+    const positiveFindings = normalizedFindings.filter(f => f.severity === 'positive');
+
+    const reasonsHtml = riskFindings.length === 0
       ? '<div class="bg-amber-50/50 p-3 shadow-inner italic text-amber-900/60 font-mono text-sm border border-amber-900/10 rounded">No risk indicators flagged during audit.</div>'
-      : caseFile.reasons.map(r => `
+      : riskFindings.map(f => `
           <div class="bg-amber-50/50 p-3 shadow-sm border border-amber-800/10 font-mono text-sm relative mb-3 rounded">
-            <div class="text-amber-950">${r}</div>
+            <div class="text-amber-950">${f.signal}</div>
           </div>
         `).join('');
+
+    const positiveHtml = positiveFindings.length === 0
+      ? ''
+      : `
+        <div class="mt-6">
+          <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-green-800 border-b border-green-900/20 pb-1 mb-4">TRUST & LEGITIMACY SIGNALS</h3>
+          ${positiveFindings.map(f => `
+            <div class="bg-green-900/10 p-3 shadow-sm border border-green-800/20 font-mono text-sm relative mb-3 rounded">
+              <div class="text-green-950 font-medium">✓ ${f.signal}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
 
     const compactRedirectChain = (caseFile.redirectChain || [caseFile.url]).map(url => {
       try { return new URL(url).hostname || url; } catch(e) { return url; }
@@ -372,6 +407,7 @@ router.get('/report/:id', (req, res) => {
           <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-amber-900/20 pb-1 mb-4">EVIDENCE LOG (RISK FACTORS)</h3>
           ${reasonsHtml}
         </div>
+        ${positiveHtml}
 
 
 
