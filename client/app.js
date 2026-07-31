@@ -1970,8 +1970,8 @@ function drawMapGraph(caseFile) {
     if (caseFile.resolvedSubdomains) {
       const subdomainsToRender = caseFile.resolvedSubdomains.slice(0, 25);
       subdomainsToRender.forEach(sub => {
-        const fullSub = `${sub.subdomain}.${hostname}`;
-        if (sub.resolved) {
+        const fullSub = sub.fqdn || (sub.subdomain.includes('.') ? sub.subdomain : `${sub.subdomain}.${hostname}`);
+        if (sub.resolved && fullSub !== hostname) {
           nodes.push({ id: fullSub, type: 'subdomain', label: fullSub });
           links.push({ source: hostname, target: fullSub });
 

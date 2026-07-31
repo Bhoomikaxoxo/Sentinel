@@ -1,3 +1,5 @@
+const tldts = require('tldts');
+
 exports.analyzeUrl = (urlString) => {
   const factors = [];
   try {
@@ -11,8 +13,9 @@ exports.analyzeUrl = (urlString) => {
     const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(url.hostname);
     if (isIp) factors.push({ id: 'ip_hostname' });
     
-    const parts = url.hostname.split('.');
-    if (parts.length > 3 && !isIp) factors.push({ id: 'excessive_subdomains' });
+    const parsedTarget = tldts.parse(url.hostname);
+    const subdomains = parsedTarget.subdomain ? parsedTarget.subdomain.split('.') : [];
+    if (subdomains.length >= 3 && !isIp) factors.push({ id: 'excessive_subdomains' });
     
     if (url.hostname.length > 30) factors.push({ id: 'long_hostname' });
     
