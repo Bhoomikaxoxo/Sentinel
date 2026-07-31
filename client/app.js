@@ -163,6 +163,22 @@ function saveCaseToDevice(caseFile) {
   return localCases;
 }
 
+function parseCaseDate(c) {
+  if (!c) return new Date(0);
+  if (c.createdAt) {
+    const d = new Date(c.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (c.timestamp) {
+    const isoLike = c.timestamp.replace(' // ', 'T').replace(' ', 'T').replace('HRS', '').trim();
+    const d = new Date(isoLike);
+    if (!isNaN(d.getTime())) return d;
+    const raw = new Date(c.timestamp);
+    if (!isNaN(raw.getTime())) return raw;
+  }
+  return new Date(0);
+}
+
 // Server Database API integration & Device Local Storage Sync
 async function fetchCasesFromServer() {
   const localCases = getLocalCases();
@@ -184,9 +200,10 @@ async function fetchCasesFromServer() {
   localCases.forEach(c => { if (c && c.id) mergedMap.set(c.id, c); });
   serverFetched.forEach(c => { if (c && c.id) mergedMap.set(c.id, c); });
 
-  serverCases = Array.from(mergedMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  serverCases = Array.from(mergedMap.values()).sort((a, b) => parseCaseDate(b).getTime() - parseCaseDate(a).getTime());
   saveLocalCases(serverCases);
   updateDashboardStats();
+  renderArchiveGrid();
 }
 
 async function clearArchiveOnServer() {
@@ -466,6 +483,7 @@ async function runSingleScan(urlInput) {
     // Add to serverCases and persist to local device storage
     serverCases = serverCases.filter(c => c.url !== caseFile.url && c.id !== caseFile.id);
     serverCases.unshift(caseFile);
+    serverCases.sort((a, b) => parseCaseDate(b).getTime() - parseCaseDate(a).getTime());
     saveLocalCases(serverCases);
     updateDashboardStats();
     renderArchiveGrid();
