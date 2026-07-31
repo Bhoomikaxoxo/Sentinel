@@ -126,6 +126,7 @@ router.get('/report/:id', (req, res) => {
       stampText = 'CAUTION';
     }
 
+    const findingExplanations = require('../data/findingExplanations');
     const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
     const rawList = (caseFile.findings && caseFile.findings.length > 0)
       ? caseFile.findings
@@ -135,14 +136,33 @@ router.get('/report/:id', (req, res) => {
       if (typeof item === 'string') {
         const lower = item.toLowerCase();
         const isPos = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
-        return { signal: item, severity: isPos ? 'positive' : 'risk' };
+        let exp = null;
+        if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = findingExplanations.missing_hsts;
+        else if (lower.includes('content-security-policy') || lower.includes('csp')) exp = findingExplanations.missing_csp;
+        else if (lower.includes('x-frame-options')) exp = findingExplanations.missing_x_frame_options;
+        else if (lower.includes('x-content-type')) exp = findingExplanations.missing_x_content_type_options;
+        else if (lower.includes('established global brand')) exp = findingExplanations.established_brand_verified;
+        else if (lower.includes('subdomains')) exp = findingExplanations.excessive_subdomains;
+        else if (lower.includes('wayback')) exp = findingExplanations.wayback_content_divergence;
+        else if (lower.includes('spf')) exp = findingExplanations.missing_spf;
+        else if (lower.includes('dmarc')) exp = findingExplanations.missing_dmarc;
+
+        return { signal: item, severity: isPos ? 'positive' : 'risk', explanation: exp };
       } else if (item && typeof item === 'object') {
         const signal = item.signal || item.desc || item.reason || '';
         const lower = signal.toLowerCase();
         const isPos = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
-        return { signal, severity: isPos ? 'positive' : (item.severity || 'risk') };
+        let exp = item.explanation || (item.id ? findingExplanations[item.id] : null);
+        if (!exp) {
+          if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = findingExplanations.missing_hsts;
+          else if (lower.includes('content-security-policy') || lower.includes('csp')) exp = findingExplanations.missing_csp;
+          else if (lower.includes('x-frame-options')) exp = findingExplanations.missing_x_frame_options;
+          else if (lower.includes('x-content-type')) exp = findingExplanations.missing_x_content_type_options;
+          else if (lower.includes('established global brand')) exp = findingExplanations.established_brand_verified;
+        }
+        return { signal, severity: isPos ? 'positive' : (item.severity || 'risk'), explanation: exp || null };
       }
-      return { signal: String(item), severity: 'risk' };
+      return { signal: String(item), severity: 'risk', explanation: null };
     });
 
     const riskFindings = normalizedFindings.filter(f => f.severity === 'risk');
@@ -152,7 +172,8 @@ router.get('/report/:id', (req, res) => {
       ? '<div class="bg-amber-50/50 p-3 shadow-inner italic text-amber-900/60 font-mono text-sm border border-amber-900/10 rounded">No risk indicators flagged during audit.</div>'
       : riskFindings.map(f => `
           <div class="bg-amber-50/50 p-3 shadow-sm border border-amber-800/10 font-mono text-sm relative mb-3 rounded">
-            <div class="text-amber-950">${f.signal}</div>
+            <div class="text-amber-950 font-bold">${f.signal}</div>
+            ${f.explanation ? `<div class="text-amber-900/70 text-xs mt-1 font-normal leading-relaxed">${f.explanation}</div>` : ''}
           </div>
         `).join('');
 
@@ -163,7 +184,8 @@ router.get('/report/:id', (req, res) => {
           <h3 class="font-mono text-xs font-bold uppercase tracking-wider text-green-800 border-b border-green-900/20 pb-1 mb-4">TRUST & LEGITIMACY SIGNALS</h3>
           ${positiveFindings.map(f => `
             <div class="bg-green-900/10 p-3 shadow-sm border border-green-800/20 font-mono text-sm relative mb-3 rounded">
-              <div class="text-green-950 font-medium">✓ ${f.signal}</div>
+              <div class="text-green-950 font-bold">✓ ${f.signal}</div>
+              ${f.explanation ? `<div class="text-green-900/70 text-xs mt-1 font-normal leading-relaxed pl-4">${f.explanation}</div>` : ''}
             </div>
           `).join('')}
         </div>

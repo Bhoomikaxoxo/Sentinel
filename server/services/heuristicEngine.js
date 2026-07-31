@@ -56,6 +56,8 @@ function classifySeverity(ruleScore, signalText) {
 
 exports.classifySeverity = classifySeverity;
 
+const findingExplanations = require('../data/findingExplanations');
+
 exports.calculateScore = (factors) => {
   let score = 100;
   const reasons = [];
@@ -71,8 +73,10 @@ exports.calculateScore = (factors) => {
 
         reasons.push(signalText);
         findings.push({
+          id: factor.id,
           signal: signalText,
-          severity: severity
+          severity: severity,
+          explanation: findingExplanations[factor.id] || null
         });
       }
     }

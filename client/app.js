@@ -857,24 +857,82 @@ function displayCaseReport(caseFile) {
   const positiveList = document.getElementById('positive-list');
   reasonsList.innerHTML = '';
 
+  // NOTE: MUST STAY IN SYNC WITH server/data/findingExplanations.js
+  const CLIENT_FINDING_EXPLANATIONS = {
+    insecure_protocol: "The website does not use encrypted HTTPS, leaving communications vulnerable to eavesdropping and interception.",
+    ip_hostname: "Legitimate web services typically use domain names rather than raw IP addresses, which are frequently seen in phishing links.",
+    excessive_subdomains: "Complex subdomain structures can be used to obfuscate destination URLs or mimic official domain paths.",
+    long_hostname: "Excessively long domain names are often crafted to conceal the real host name on smaller browser screens.",
+    many_numbers_in_domain: "Domains with high proportions of numerical strings match patterns of programmatically generated temporary scam sites.",
+    punycode_domain: "Punycode encoding can disguise look-alike foreign characters to impersonate legitimate brand names.",
+    invalid_url: "The web address syntax is malformed or invalid, preventing standard URL analysis.",
+    typosquat_domain: "The domain name closely mimics a major brand to trick users who make minor typing mistakes.",
+    suspicious_keyword: "The link contains sensitive keywords (e.g. 'login', 'verify') on a domain that may be harvesting credentials.",
+    fake_brand_keyword: "The URL includes a famous brand name but is hosted on an unofficial domain.",
+    threat_feed_match: "Global community security feeds (URLhaus, PhishTank, OpenPhish) report this domain as active threat infrastructure.",
+    multi_feed_flagged: "Multiple independent security blacklists have corroborated and flagged this target as malicious.",
+    newly_registered_domain: "The domain was registered within the last 30 days, a common characteristic of temporary scam setups.",
+    rdap_unavailable: "Ownership and registration age credentials could not be retrieved from public WHOIS/RDAP registries.",
+    new_ssl_certificate: "The SSL certificate was issued in the last 7 days, indicating very recently established server infrastructure.",
+    recently_reissued_cert: "A brand-new SSL certificate on a pre-existing domain can indicate a domain takeover or repurposing.",
+    wayback_content_divergence: "Current page text differs significantly from historical internet archives, suggesting possible content hijack or defacement.",
+    visual_content_changed: "The page layout has changed significantly from a previous scan, indicating potential form modification.",
+    dns_resolution_failure: "The domain failed to resolve via DNS, meaning the server might be offline, suspended, or blocked.",
+    dns_resolution_error: "DNS resolution checks encountered a lookup error.",
+    redirect_occurred: "The URL immediately forwards to another destination, a technique used to bypass automated security scanners.",
+    missing_hsts: "The site doesn't force secure connections, which could allow attackers to downgrade users to an unencrypted connection.",
+    missing_csp: "Leaves the site more exposed to script-injection attacks, since browsers aren't restricted to trusted sources for scripts and other resources.",
+    missing_x_frame_options: "The site can be embedded in a hidden frame on another page, a technique used for clickjacking attacks.",
+    missing_x_content_type_options: "Browsers may guess file types incorrectly, which can be exploited to run malicious scripts disguised as harmless files.",
+    missing_spf: "Without SPF, attackers can more easily spoof emails that appear to come from this domain.",
+    missing_dmarc: "Without DMARC, there's no policy telling email providers what to do with spoofed messages claiming to be from this domain.",
+    connection_failed: "Failed to connect to the target web server during the sandboxed audit.",
+    invisible_credential_fields: "Hidden or invisible login form fields were detected, which is typical of credential theft techniques.",
+    urgency_language: "The page uses pushy social engineering language (e.g. 'account suspended', 'immediate action') to panic users.",
+    brand_mismatch_dom: "The page contents present logos or text matching a brand, but the hosting domain does not match that brand's official profile.",
+    established_brand_verified: "This domain matches a well-known, verified global brand, which is a positive trust signal.",
+    dom_analysis_failed: "DOM structural analysis was skipped or failed."
+  };
+
   const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
 
   function normalizeFinding(item) {
     if (typeof item === 'string') {
       const lower = item.toLowerCase();
       const isPositive = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+      let exp = null;
+      if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = CLIENT_FINDING_EXPLANATIONS.missing_hsts;
+      else if (lower.includes('content-security-policy') || lower.includes('csp')) exp = CLIENT_FINDING_EXPLANATIONS.missing_csp;
+      else if (lower.includes('x-frame-options')) exp = CLIENT_FINDING_EXPLANATIONS.missing_x_frame_options;
+      else if (lower.includes('x-content-type')) exp = CLIENT_FINDING_EXPLANATIONS.missing_x_content_type_options;
+      else if (lower.includes('established global brand')) exp = CLIENT_FINDING_EXPLANATIONS.established_brand_verified;
+      else if (lower.includes('subdomains')) exp = CLIENT_FINDING_EXPLANATIONS.excessive_subdomains;
+      else if (lower.includes('wayback')) exp = CLIENT_FINDING_EXPLANATIONS.wayback_content_divergence;
+      else if (lower.includes('spf')) exp = CLIENT_FINDING_EXPLANATIONS.missing_spf;
+      else if (lower.includes('dmarc')) exp = CLIENT_FINDING_EXPLANATIONS.missing_dmarc;
+
       return {
+        id: null,
         signal: item,
-        severity: isPositive ? 'positive' : 'risk'
+        severity: isPositive ? 'positive' : 'risk',
+        explanation: exp
       };
     } else if (item && typeof item === 'object') {
       const signal = item.signal || item.desc || item.reason || '';
       const lower = signal.toLowerCase();
       const isPositiveKeyword = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
       const severity = isPositiveKeyword ? 'positive' : (item.severity || 'risk');
-      return { signal, severity };
+      let exp = item.explanation || (item.id ? CLIENT_FINDING_EXPLANATIONS[item.id] : null);
+      if (!exp) {
+        if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = CLIENT_FINDING_EXPLANATIONS.missing_hsts;
+        else if (lower.includes('content-security-policy') || lower.includes('csp')) exp = CLIENT_FINDING_EXPLANATIONS.missing_csp;
+        else if (lower.includes('x-frame-options')) exp = CLIENT_FINDING_EXPLANATIONS.missing_x_frame_options;
+        else if (lower.includes('x-content-type')) exp = CLIENT_FINDING_EXPLANATIONS.missing_x_content_type_options;
+        else if (lower.includes('established global brand')) exp = CLIENT_FINDING_EXPLANATIONS.established_brand_verified;
+      }
+      return { id: item.id || null, signal, severity, explanation: exp || null };
     }
-    return { signal: String(item), severity: 'risk' };
+    return { id: null, signal: String(item), severity: 'risk', explanation: null };
   }
 
   const rawList = (caseFile.findings && caseFile.findings.length > 0)
@@ -895,7 +953,12 @@ function displayCaseReport(caseFile) {
       const div = document.createElement('div');
       div.className = 'pin-tag bg-paper-container-lowest folder-texture p-3 pin-hole shadow-sm opacity-0 translate-x-4 transition-all duration-500';
       div.style.transitionDelay = `${index * 80}ms`;
-      div.innerHTML = `<div class="font-data-mono text-data-mono text-ink">${finding.signal}</div>`;
+
+      let inner = `<div class="font-data-mono text-data-mono text-ink font-semibold">${finding.signal}</div>`;
+      if (finding.explanation) {
+        inner += `<div class="font-data-mono text-[11px] text-on-surface-variant/80 mt-1.5 leading-relaxed font-normal">${finding.explanation}</div>`;
+      }
+      div.innerHTML = inner;
       reasonsList.appendChild(div);
 
       // Trigger fade in
@@ -914,10 +977,15 @@ function displayCaseReport(caseFile) {
         const div = document.createElement('div');
         div.className = 'pin-tag bg-green-500/10 border border-green-500/30 p-3 rounded shadow-sm opacity-0 translate-x-4 transition-all duration-500';
         div.style.transitionDelay = `${index * 80}ms`;
-        div.innerHTML = `<div class="font-data-mono text-data-mono text-green-900 font-medium flex items-center gap-2">
+
+        let inner = `<div class="font-data-mono text-data-mono text-green-900 font-bold flex items-center gap-2">
           <span class="material-symbols-outlined text-[16px] text-green-700">check_circle</span>
           <span>${finding.signal}</span>
         </div>`;
+        if (finding.explanation) {
+          inner += `<div class="font-data-mono text-[11px] text-green-800/80 mt-1.5 leading-relaxed font-normal pl-6">${finding.explanation}</div>`;
+        }
+        div.innerHTML = inner;
         positiveList.appendChild(div);
 
         setTimeout(() => {
