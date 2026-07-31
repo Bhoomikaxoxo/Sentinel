@@ -128,6 +128,7 @@ router.get('/report/:id', (req, res) => {
 
     const findingExplanations = require('../data/findingExplanations');
     const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
+    const NEGATIVE_PREFIXES = ['could not be', 'not verified', 'failed to verify', 'unverified', 'lacks', 'missing'];
     const rawList = (caseFile.findings && caseFile.findings.length > 0)
       ? caseFile.findings
       : (caseFile.reasons || []);
@@ -135,7 +136,8 @@ router.get('/report/:id', (req, res) => {
     const normalizedFindings = rawList.map(item => {
       if (typeof item === 'string') {
         const lower = item.toLowerCase();
-        const isPos = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+        const isNegativeContext = NEGATIVE_PREFIXES.some(neg => lower.includes(neg));
+        const isPos = !isNegativeContext && POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
         let exp = null;
         if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = findingExplanations.missing_hsts;
         else if (lower.includes('content-security-policy') || lower.includes('csp')) exp = findingExplanations.missing_csp;
@@ -151,7 +153,14 @@ router.get('/report/:id', (req, res) => {
       } else if (item && typeof item === 'object') {
         const signal = item.signal || item.desc || item.reason || '';
         const lower = signal.toLowerCase();
-        const isPos = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+
+        let severity = item.severity;
+        if (!severity) {
+          const isNegativeContext = NEGATIVE_PREFIXES.some(neg => lower.includes(neg));
+          const isPos = !isNegativeContext && POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+          severity = isPos ? 'positive' : 'risk';
+        }
+
         let exp = item.explanation || (item.id ? findingExplanations[item.id] : null);
         if (!exp) {
           if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = findingExplanations.missing_hsts;
@@ -160,7 +169,7 @@ router.get('/report/:id', (req, res) => {
           else if (lower.includes('x-content-type')) exp = findingExplanations.missing_x_content_type_options;
           else if (lower.includes('established global brand')) exp = findingExplanations.established_brand_verified;
         }
-        return { signal, severity: isPos ? 'positive' : (item.severity || 'risk'), explanation: exp || null };
+        return { signal, severity, explanation: exp || null };
       }
       return { signal: String(item), severity: 'risk', explanation: null };
     });

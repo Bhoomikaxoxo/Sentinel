@@ -895,11 +895,13 @@ function displayCaseReport(caseFile) {
   };
 
   const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
+  const NEGATIVE_PREFIXES = ['could not be', 'not verified', 'failed to verify', 'unverified', 'lacks', 'missing'];
 
   function normalizeFinding(item) {
     if (typeof item === 'string') {
       const lower = item.toLowerCase();
-      const isPositive = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+      const isNegativeContext = NEGATIVE_PREFIXES.some(neg => lower.includes(neg));
+      const isPositive = !isNegativeContext && POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
       let exp = null;
       if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = CLIENT_FINDING_EXPLANATIONS.missing_hsts;
       else if (lower.includes('content-security-policy') || lower.includes('csp')) exp = CLIENT_FINDING_EXPLANATIONS.missing_csp;
@@ -920,8 +922,15 @@ function displayCaseReport(caseFile) {
     } else if (item && typeof item === 'object') {
       const signal = item.signal || item.desc || item.reason || '';
       const lower = signal.toLowerCase();
-      const isPositiveKeyword = POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
-      const severity = isPositiveKeyword ? 'positive' : (item.severity || 'risk');
+
+      // Respect structured finding severity from server if present; fallback to keyword check only for legacy/unstructured items
+      let severity = item.severity;
+      if (!severity) {
+        const isNegativeContext = NEGATIVE_PREFIXES.some(neg => lower.includes(neg));
+        const isPositiveKeyword = !isNegativeContext && POSITIVE_KEYWORDS.some(kw => lower.includes(kw));
+        severity = isPositiveKeyword ? 'positive' : 'risk';
+      }
+
       let exp = item.explanation || (item.id ? CLIENT_FINDING_EXPLANATIONS[item.id] : null);
       if (!exp) {
         if (lower.includes('strict-transport-security') || lower.includes('hsts')) exp = CLIENT_FINDING_EXPLANATIONS.missing_hsts;

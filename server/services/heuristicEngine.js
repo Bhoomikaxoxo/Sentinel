@@ -37,20 +37,17 @@ const RULE_WEIGHTS = {
 exports.RULE_WEIGHTS = RULE_WEIGHTS;
 
 const POSITIVE_KEYWORDS = ['verified', 'established', 'legitimate', 'trusted', 'matches expected'];
+const NEGATIVE_PREFIXES = ['could not be', 'not verified', 'failed to verify', 'unverified', 'lacks', 'missing'];
 
 function classifySeverity(ruleScore, signalText) {
-  const lowerSignal = (signalText || '').toLowerCase();
-  const matchesPositiveKeyword = POSITIVE_KEYWORDS.some(kw => lowerSignal.includes(kw));
+  if (ruleScore > 0) return 'positive';
+  if (ruleScore < 0) return 'risk';
 
-  if (matchesPositiveKeyword) {
-    return 'positive';
-  }
-  if (ruleScore > 0) {
-    return 'positive';
-  }
-  if (ruleScore < 0) {
-    return 'risk';
-  }
+  const lowerSignal = (signalText || '').toLowerCase();
+  const isNegativeContext = NEGATIVE_PREFIXES.some(neg => lowerSignal.includes(neg));
+  const matchesPositiveKeyword = !isNegativeContext && POSITIVE_KEYWORDS.some(kw => lowerSignal.includes(kw));
+
+  if (matchesPositiveKeyword) return 'positive';
   return 'neutral';
 }
 
