@@ -1892,7 +1892,7 @@ function initImageDiffSlider(currentScreenshotUrl, previousScreenshotUrl) {
 
 // ----------------------------------------------------
 // INTERNET MAPPER TAB GRAPH RENDERING (D3 FORCE-DIRECTED)
-// ----------------------------------------------------
+let activeMapperRequestId = 0;
 
 function renderInternetMap() {
   const emptyState = document.getElementById('mapper-empty-state');
@@ -1900,6 +1900,7 @@ function renderInternetMap() {
   const caseSelect = document.getElementById('mapper-case-select');
   if (!emptyState || !recordContent || !caseSelect) return;
 
+  const currentReqId = ++activeMapperRequestId;
   const activeCaseFile = currentCase || serverCases[0];
 
   // Populate active case selector dropdown
@@ -1912,9 +1913,31 @@ function renderInternetMap() {
 
     if (!caseSelect.dataset.bound) {
       caseSelect.dataset.bound = 'true';
-      caseSelect.onchange = (e) => {
+      caseSelect.onchange = async (e) => {
+        const reqId = ++activeMapperRequestId;
         const selectedId = e.target.value;
-        const found = serverCases.find(sc => sc.id === selectedId);
+        let found = serverCases.find(sc => sc.id === selectedId);
+
+        // Fetch full case if needed
+        if (found && (!found.reasons || !found.resolvedSubdomains)) {
+          try {
+            const caseResponse = await fetch(`/api/cases/${selectedId}`, {
+              headers: { 'x-client-id': getClientId() }
+            });
+            if (caseResponse.ok) {
+              const fullCase = await caseResponse.json();
+              if (reqId !== activeMapperRequestId) return; // Stale request guard
+              found = fullCase;
+              const idx = serverCases.findIndex(sc => sc.id === selectedId);
+              if (idx !== -1) serverCases[idx] = fullCase;
+            }
+          } catch (err) {
+            console.error('Failed to fetch full case details:', err);
+          }
+        }
+
+        if (reqId !== activeMapperRequestId) return; // Stale request guard
+
         if (found) {
           currentCase = found;
           renderInternetMap();
@@ -1922,6 +1945,8 @@ function renderInternetMap() {
       };
     }
   }
+
+  if (currentReqId !== activeMapperRequestId) return; // Stale request guard
 
   if (!activeCaseFile) {
     emptyState.classList.remove('hidden');
@@ -1943,6 +1968,7 @@ function drawMapGraph(caseFile) {
   const canvas = document.getElementById('mapper-canvas');
   if (!canvas) return;
 
+  canvas._activeCaseFile = caseFile;
   canvas.innerHTML = '';
 
   const width = canvas.clientWidth || 550;
@@ -2390,11 +2416,11 @@ function drawMapGraph(caseFile) {
   });
 
 
-  setupDelegatedListener(canvas, caseFile);
+  setupDelegatedListener(canvas);
   showNodeDetails('domain', hostname, caseFile);
 }
 
-function setupDelegatedListener(canvas, caseFile) {
+function setupDelegatedListener(canvas) {
   if (!canvas.dataset.listenerBound) {
     canvas.dataset.listenerBound = 'true';
     canvas.addEventListener('click', (e) => {
@@ -2404,12 +2430,18 @@ function setupDelegatedListener(canvas, caseFile) {
       const type = nodeGroup.getAttribute('data-type');
       const id = nodeGroup.getAttribute('data-id');
 
-      showNodeDetails(type, id, caseFile);
+      const activeCase = canvas._activeCaseFile || currentCase || serverCases[0];
+      if (activeCase) {
+        showNodeDetails(type, id, activeCase);
+      }
     });
   }
 }
 
-function showNodeDetails(type, id, caseFile) {
+function showNodeDetails(type, id, targetCaseFile) {
+  const caseFile = targetCaseFile || (document.getElementById('mapper-canvas')?._activeCaseFile) || currentCase || serverCases[0];
+  if (!caseFile) return;
+
   const defaultDrawer = document.getElementById('mapper-details-default');
   const detailsContent = document.getElementById('mapper-details-content');
   if (!defaultDrawer || !detailsContent) return;
