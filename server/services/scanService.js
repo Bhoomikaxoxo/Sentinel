@@ -132,6 +132,12 @@ exports.scanUrl = async (urlString, options = {}) => {
       )
     : Promise.reject(new Error('SCREENSHOTONE_ACCESS_KEY not configured'));
 
+  // Keyless Public Screenshot Service (WordPress mshots) — runs in parallel as universal cloud fallback
+  const mshotsPromise = axios.get(
+    `https://s0.wp.com/mshots/v1/${encodeURIComponent(targetUrl)}?w=1280&h=900`,
+    { responseType: 'arraybuffer', timeout: 7000 }
+  );
+
   const [
     reputationRes,
     certRes,
@@ -141,7 +147,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     portsRes,
     subdomainsRes,
     sslInfoRes,
-    screenshotApiRes
+    screenshotApiRes,
+    mshotsRes
   ] = await Promise.allSettled([
     reputationService.checkReputation(url),
     certTransparencyService.checkCertTransparency(hostname),
@@ -151,7 +158,8 @@ exports.scanUrl = async (urlString, options = {}) => {
     portScanner.scanPorts(hostname),
     subdomainResolver.resolveSubdomains(hostname),
     getSslInfo(hostname),
-    screenshotApiPromise
+    screenshotApiPromise,
+    mshotsPromise
   ]);
 
   // Process Reputation (WHOIS / RDAP)
@@ -231,17 +239,38 @@ exports.scanUrl = async (urlString, options = {}) => {
     }
   }
 
-  // Use ScreenshotOne screenshot (already fetched in parallel above)
+  // Fallback 1: ScreenshotOne API
   if (!screenshotBase64 && screenshotApiRes.status === 'fulfilled') {
     const imgData = screenshotApiRes.value?.data;
     if (imgData && imgData.byteLength > 5000) {
       screenshotBase64 = Buffer.from(imgData).toString('base64');
       log(`Active probe: Screenshot captured via ScreenshotOne (${Math.round(imgData.byteLength / 1024)}KB).`);
-    } else {
-      log(`Active probe: ScreenshotOne returned empty image (${imgData?.byteLength || 0} bytes).`);
     }
-  } else if (!screenshotBase64) {
-    log(`Active probe: Screenshot API unavailable - ${screenshotApiRes.reason?.message || 'unknown'}`);
+  }
+
+  // Fallback 2: WordPress mshots API (Free keyless cloud fallback for Vercel deployments)
+  if (!screenshotBase64 && mshotsRes.status === 'fulfilled') {
+    const imgData = mshotsRes.value?.data;
+    if (imgData && imgData.byteLength > 5000) {
+      screenshotBase64 = Buffer.from(imgData).toString('base64');
+      log(`Active probe: Snapshot image captured via WordPress mshots (${Math.round(imgData.byteLength / 1024)}KB).`);
+    }
+  }
+
+  // Fallback 3: Thum.io API (Second keyless cloud fallback)
+  if (!screenshotBase64) {
+    try {
+      const thumRes = await axios.get(`https://image.thum.io/get/width/1280/crop/900/${targetUrl}`, {
+        responseType: 'arraybuffer',
+        timeout: 5000
+      });
+      if (thumRes.data && thumRes.data.byteLength > 5000) {
+        screenshotBase64 = Buffer.from(thumRes.data).toString('base64');
+        log(`Active probe: Snapshot image captured via Thum.io (${Math.round(thumRes.data.byteLength / 1024)}KB).`);
+      }
+    } catch (thumErr) {
+      log(`Active probe: Screenshot API unavailable.`);
+    }
   }
 
   // Process Registry Record & Mapper
