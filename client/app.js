@@ -84,11 +84,13 @@ function initTabs() {
 
   // Simplify Notes Toggle Button
   const simplifyBtn = document.getElementById('notes-simplify-btn');
-  if (simplifyBtn) {
+  if (simplifyBtn && !simplifyBtn.hasAttribute('data-bound')) {
+    simplifyBtn.setAttribute('data-bound', 'true');
     simplifyBtn.addEventListener('click', () => {
       isSimplifiedNotesMode = !isSimplifiedNotesMode;
-      if (currentCase) {
-        updateInvestigatorNotes(currentCase);
+      const targetCase = currentCase || (serverCases.length > 0 ? serverCases[0] : null);
+      if (targetCase) {
+        updateInvestigatorNotes(targetCase);
       }
     });
   }
@@ -2764,11 +2766,7 @@ function updateInvestigatorNotes(caseFile) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initTabs();
-  initSettings();
-  fetchCasesFromServer();
-});
+
 
 
 
