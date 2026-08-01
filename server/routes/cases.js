@@ -73,10 +73,14 @@ router.post('/:id/watch', (req, res) => {
 router.post('/:id/feedback', (req, res) => {
   try {
     const { id } = req.params;
-    const { feedback } = req.body; // e.g. "inaccurate" or null
-    const success = store.updateCase(id, { userFeedback: feedback });
+    const { feedback, userFlagged } = req.body; // e.g. "flagged", "inaccurate", or null
+    const updates = { userFeedback: feedback };
+    if (userFlagged !== undefined) {
+      updates.userFlagged = userFlagged;
+    }
+    const success = store.updateCase(id, updates);
     if (success) {
-      res.json({ success: true, userFeedback: feedback });
+      res.json({ success: true, userFeedback: feedback, userFlagged });
     } else {
       res.status(404).json({ error: 'Case not found' });
     }

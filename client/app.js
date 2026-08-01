@@ -708,36 +708,47 @@ document.getElementById('share-report-btn').addEventListener('click', () => {
     });
 });
 
-// Accuracy Feedback event handler
-document.getElementById('report-feedback-btn').addEventListener('click', async () => {
-  if (!currentCase) return;
-  const isNowInaccurate = currentCase.userFeedback === 'inaccurate' ? null : 'inaccurate';
+// Toggle Flag state for a case (interactive across intake log, report, and archive)
+async function toggleCaseFlag(caseId) {
+  const c = serverCases.find(item => item.id === caseId);
+  if (!c) return;
+
+  const isCurrentlyFlagged = c.userFlagged === true || c.userFeedback === 'flagged' || c.userFeedback === 'inaccurate';
+  const newFlagged = !isCurrentlyFlagged;
+  c.userFlagged = newFlagged;
+  c.userFeedback = newFlagged ? 'flagged' : null;
+
+  if (currentCase && currentCase.id === c.id) {
+    currentCase.userFlagged = c.userFlagged;
+    currentCase.userFeedback = c.userFeedback;
+  }
+
+  saveLocalCases(serverCases);
 
   try {
-    const response = await fetch(`/api/cases/${currentCase.id}/feedback`, {
+    await fetch(`/api/cases/${c.id}/feedback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-client-id': getClientId()
       },
-      body: JSON.stringify({ feedback: isNowInaccurate })
+      body: JSON.stringify({ feedback: c.userFeedback, userFlagged: c.userFlagged })
     });
-
-    if (response.ok) {
-      currentCase.userFeedback = isNowInaccurate;
-
-      // Sync local cache
-      const localIdx = serverCases.findIndex(c => c.id === currentCase.id);
-      if (localIdx !== -1) {
-        serverCases[localIdx].userFeedback = isNowInaccurate;
-      }
-
-      displayCaseReport(currentCase);
-      renderArchiveGrid();
-    }
   } catch (err) {
-    console.error('Failed to update feedback status:', err);
+    console.error('Failed to sync flag status with server:', err);
   }
+
+  updateDashboardStats();
+  renderArchiveGrid();
+  if (currentCase && currentCase.id === c.id) {
+    displayCaseReport(currentCase);
+  }
+}
+
+// Flag / Feedback button handler
+document.getElementById('report-feedback-btn').addEventListener('click', async () => {
+  if (!currentCase) return;
+  await toggleCaseFlag(currentCase.id);
 });
 
 // Render Manila Folder Case Report
@@ -789,15 +800,20 @@ function displayCaseReport(caseFile) {
     diffAlert.classList.add('hidden');
   }
 
-  // Accuracy Feedback Button layout styling
+  // Flag / Accuracy Feedback Button layout styling
+  const isCaseFlagged = caseFile.userFlagged === true || caseFile.userFeedback === 'flagged' || caseFile.userFeedback === 'inaccurate';
   const feedbackBtn = document.getElementById('report-feedback-btn');
   const feedbackText = document.getElementById('feedback-btn-text');
-  if (caseFile.userFeedback === 'inaccurate') {
-    feedbackBtn.className = 'flex items-center gap-1 font-data-mono text-xs border border-error px-3 py-1.5 bg-error text-on-primary rounded hover:bg-error/90 hover:scale-105 active:scale-95 transition-all';
-    feedbackText.textContent = 'REPORT INACCURATE';
+  const feedbackIcon = feedbackBtn ? feedbackBtn.querySelector('.material-symbols-outlined') : null;
+
+  if (isCaseFlagged) {
+    feedbackBtn.className = 'flex items-center gap-1 font-data-mono text-xs border border-error px-3 py-1.5 bg-error text-on-primary rounded hover:bg-error/90 hover:scale-105 active:scale-95 transition-all shadow-md';
+    feedbackText.textContent = 'FLAGGED (CLICK TO UNFLAG)';
+    if (feedbackIcon) feedbackIcon.textContent = 'flag';
   } else {
     feedbackBtn.className = 'flex items-center gap-1 font-data-mono text-xs border border-outline-variant px-3 py-1.5 bg-paper rounded hover:bg-[#e4d9be] hover:scale-105 active:scale-95 transition-all';
-    feedbackText.textContent = 'MARK INACCURATE';
+    feedbackText.textContent = 'FLAG DOMAIN';
+    if (feedbackIcon) feedbackIcon.textContent = 'flag';
   }
 
   // Verdict Stamp Styling (Including inline score display)
@@ -810,15 +826,15 @@ function displayCaseReport(caseFile) {
   void stampContainer.offsetWidth; // force reflow
   stampContainer.classList.add('animate-stamp');
 
-  if (caseFile.score >= 80) {
-    stampText.textContent = `CLEARED (${caseFile.score}/100)`;
-    stampText.className = 'border-4 border-outline-variant text-primary px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
-  } else if (caseFile.score >= 50) {
-    stampText.textContent = `CAUTION (${caseFile.score}/100)`;
-    stampText.className = 'border-4 border-secondary text-verdict-caution px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
-  } else {
+  if (isCaseFlagged || (caseFile.score || 0) < 50) {
     stampText.textContent = `FLAGGED (${caseFile.score}/100)`;
     stampText.className = 'border-4 border-error text-error px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
+  } else if (caseFile.score >= 80) {
+    stampText.textContent = `CLEARED (${caseFile.score}/100)`;
+    stampText.className = 'border-4 border-outline-variant text-primary px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
+  } else {
+    stampText.textContent = `CAUTION (${caseFile.score}/100)`;
+    stampText.className = 'border-4 border-secondary text-verdict-caution px-6 py-2 font-display-lg text-display-lg stamped-effect flex items-center gap-2 uppercase tracking-wide';
   }
 
   // Threat Category Badges
@@ -1209,16 +1225,26 @@ function renderArchiveGrid() {
     const entry = document.createElement('div');
     entry.className = 'relative group cursor-pointer';
 
-    let verdictColor = 'text-error border-error';
-    if (c.score >= 80) verdictColor = 'text-primary border-outline-variant';
-    else if (c.score >= 50) verdictColor = 'text-verdict-caution border-secondary';
+    const isFlagged = c.userFlagged === true || c.userFeedback === 'flagged' || c.userFeedback === 'inaccurate' || (c.score !== undefined && c.score < 50);
+
+    let verdictText = 'FLAGGED';
+    let verdictColor = 'text-error border-error bg-error/10 font-bold';
+    if (!isFlagged) {
+      if (c.score >= 80) {
+        verdictText = 'CLEARED';
+        verdictColor = 'text-primary border-outline-variant';
+      } else {
+        verdictText = 'CAUTION';
+        verdictColor = 'text-verdict-caution border-secondary';
+      }
+    }
 
     const displayDomain = c.url.replace('https://', '').replace('http://', '').split('/')[0];
 
     // Star watch tab indicators and alert notifications
     const watchIconHtml = c.watched ? `<span class="material-symbols-outlined text-[15px] text-yellow-500 ml-2" title="Watched Domain">star</span>` : '';
     const alertBorderClass = c.alert ? 'border-2 border-red-500 animate-pulse shadow-[0px_0px_10px_rgba(239,68,68,0.5)]' : 'border-outline-variant';
-    const feedbackWarningHtml = c.userFeedback === 'inaccurate' ? `<span class="bg-error text-on-primary text-[8px] font-data-mono px-1.5 py-0.5 rounded uppercase font-bold ml-2 animate-pulse" title="Flagged Inaccurate">AUDIT</span>` : '';
+    const feedbackWarningHtml = isFlagged ? `<span class="bg-error text-on-primary text-[8px] font-data-mono px-1.5 py-0.5 rounded uppercase font-bold ml-2 animate-pulse" title="Flagged Inaccurate">FLAGGED</span>` : '';
 
     entry.innerHTML = `
       <!-- Manila Folder Tab -->
@@ -1230,11 +1256,11 @@ function renderArchiveGrid() {
         <div>
           <div class="flex justify-between items-start mb-6">
             <div class="space-y-1 flex-grow truncate">
-              <p class="font-data-mono text-label-sm text-on-surface-variant">TIMESTAMP: ${c.timestamp.split(' // ')[0]}</p>
+              <p class="font-data-mono text-label-sm text-on-surface-variant">TIMESTAMP: ${c.timestamp ? c.timestamp.split(' // ')[0] : 'N/A'}</p>
               <p class="font-data-mono text-label-sm text-primary font-bold break-all">TARGET: ${displayDomain}</p>
             </div>
             <div class="verdict-stamp ${verdictColor} text-[16px] px-3 py-1 opacity-90 scale-90 flex-shrink-0">
-              ${c.score >= 80 ? 'CLEARED' : (c.score >= 50 ? 'CAUTION' : 'FLAGGED')}
+              ${verdictText}
             </div>
           </div>
           <div class="border-t border-outline-variant pt-4 mb-6">
@@ -1247,6 +1273,10 @@ function renderArchiveGrid() {
         <div class="flex flex-wrap gap-2 justify-between items-center mt-4">
           <span class="font-data-mono text-label-sm bg-primary-fixed text-primary px-2 py-0.5">SCORE: ${c.score}/100</span>
           <div class="flex items-center gap-2 mr-28">
+            <button class="font-data-mono text-xs border ${isFlagged ? 'border-error bg-error text-on-primary' : 'border-outline-variant bg-paper hover:bg-secondary-container'} px-2 py-1 transition-all flex items-center gap-1 toggle-flag-card-btn font-bold" title="Toggle Flag status">
+              <span class="material-symbols-outlined text-[14px]">flag</span>
+              <span>${isFlagged ? 'FLAGGED' : 'FLAG'}</span>
+            </button>
             <button class="font-data-mono text-xs border border-outline-variant px-2.5 py-1 bg-paper hover:bg-secondary-container transition-all flex items-center gap-1 view-registry-btn font-bold" title="View WHOIS / RDAP Registry Record for this case">
               <span class="material-symbols-outlined text-[14px]">description</span>
               <span>REGISTRY</span>
@@ -1271,6 +1301,11 @@ function renderArchiveGrid() {
         ` : ''}
       </div>
     `;
+
+    entry.querySelector('.toggle-flag-card-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleCaseFlag(c.id);
+    });
 
     entry.querySelector('.view-registry-btn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1653,6 +1688,12 @@ function parseCaseDate(c) {
     if (!isNaN(d.getTime())) return d;
   }
   if (c.timestamp) {
+    // Extract YYYY-MM-DD pattern if available
+    const dateMatch = c.timestamp.match(/(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) {
+      const d = new Date(dateMatch[1]);
+      if (!isNaN(d.getTime())) return d;
+    }
     const cleaned = c.timestamp.replace(' // ', ' ').replace('HRS', '').trim();
     const d = new Date(cleaned);
     if (!isNaN(d.getTime())) return d;
@@ -1669,7 +1710,9 @@ function updateDashboardStats() {
   const todayStr = new Date().toDateString();
   const flaggedToday = serverCases.filter(c => {
     const caseDate = parseCaseDate(c);
-    return caseDate.toDateString() === todayStr && (c.score || 0) < 50;
+    const isToday = caseDate.toDateString() === todayStr;
+    const isFlagged = c.userFlagged === true || c.userFeedback === 'flagged' || c.userFeedback === 'inaccurate' || (c.score !== undefined && c.score < 50);
+    return isToday && isFlagged;
   }).length;
   document.getElementById('stats-flagged-today').textContent = String(flaggedToday).padStart(2, '0');
 
@@ -1681,14 +1724,15 @@ function updateDashboardStats() {
   }
   document.getElementById('stats-avg-score').textContent = avgScore;
 
-  // 4. Verdict Tally (Malicious: < 50, Suspicious: 50-79, Benign: >= 80)
+  // 4. Verdict Tally (Malicious: < 50 or user-flagged, Suspicious: 50-79, Benign: >= 80)
   let maliciousCount = 0;
   let suspiciousCount = 0;
   let benignCount = 0;
 
   serverCases.forEach(c => {
+    const isFlagged = c.userFlagged === true || c.userFeedback === 'flagged' || c.userFeedback === 'inaccurate' || (c.score !== undefined && c.score < 50);
     const score = c.score || 0;
-    if (score < 50) maliciousCount++;
+    if (isFlagged) maliciousCount++;
     else if (score < 80) suspiciousCount++;
     else benignCount++;
   });
@@ -1767,15 +1811,17 @@ function renderIntakeLog() {
     const dateObj = parseCaseDate(c);
     const timeStr = `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}:${String(dateObj.getSeconds()).padStart(2, '0')}`;
 
+    const isFlagged = c.userFlagged === true || c.userFeedback === 'flagged' || c.userFeedback === 'inaccurate' || (c.score !== undefined && c.score < 50);
+
     // Determine priority badge and coloring
     let badgeText = 'BENIGN';
-    let badgeClass = 'text-verdict-green border-verdict-green';
-    if (c.score < 50) {
+    let badgeClass = 'text-verdict-green border-verdict-green hover:bg-verdict-green/10';
+    if (isFlagged) {
       badgeText = 'FLAGGED';
-      badgeClass = 'text-verdict-red border-error';
+      badgeClass = 'text-verdict-red border-error bg-error/10 font-bold shadow-sm';
     } else if (c.score < 80) {
       badgeText = 'SUSPICIOUS';
-      badgeClass = 'text-verdict-amber border-verdict-amber';
+      badgeClass = 'text-verdict-amber border-verdict-amber hover:bg-verdict-amber/10';
     }
 
     const row = document.createElement('div');
@@ -1787,7 +1833,9 @@ function renderIntakeLog() {
         <span class="font-data-mono text-data-mono font-bold text-ink truncate max-w-[200px] sm:max-w-xs md:max-w-md cursor-pointer hover:underline text-left block" title="${c.url}">${c.url}</span>
       </div>
       <div class="flex items-center gap-4">
-        <span class="font-data-mono text-[10px] border px-2 py-0.5 tracking-wider ${badgeClass}">${badgeText}</span>
+        <button class="flag-badge-btn font-data-mono text-[10px] border px-2 py-0.5 tracking-wider rounded transition-all hover:scale-105 active:scale-95 cursor-pointer ${badgeClass}" title="Click to toggle Flag status">
+          ${badgeText}
+        </button>
         <button class="material-symbols-outlined text-sm text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95 duration-100 view-case-link" data-id="${c.id}" title="Inspect Case File">
           open_in_new
         </button>
@@ -1805,6 +1853,10 @@ function renderIntakeLog() {
 
     row.querySelector('.font-bold').addEventListener('click', loadReport);
     row.querySelector('.view-case-link').addEventListener('click', loadReport);
+    row.querySelector('.flag-badge-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleCaseFlag(c.id);
+    });
 
     container.appendChild(row);
   });
