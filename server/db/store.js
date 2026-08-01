@@ -14,12 +14,16 @@ function loadCache() {
 
   if (!fs.existsSync(DB_PATH)) {
     try {
-      fs.writeFileSync(DB_PATH, JSON.stringify([], null, 2));
+      const seedPath = path.join(__dirname, 'cases.json');
+      if (fs.existsSync(seedPath)) {
+        const seedData = fs.readFileSync(seedPath, 'utf-8');
+        fs.writeFileSync(DB_PATH, seedData);
+      } else {
+        fs.writeFileSync(DB_PATH, JSON.stringify([], null, 2));
+      }
     } catch (err) {
       console.error('Failed to initialize cases.json database file:', err.message);
     }
-    casesCache = [];
-    return casesCache;
   }
 
   try {
@@ -43,7 +47,7 @@ function flushToDisk() {
 function getCases(clientId) {
   const cases = loadCache();
   if (clientId) {
-    return cases.filter(c => c.clientId === clientId);
+    return cases.filter(c => !c.clientId || c.clientId === clientId || c.clientId === 'anonymous');
   }
   return cases;
 }
@@ -55,8 +59,8 @@ function getCaseById(id) {
 
 function addCase(caseFile) {
   const cases = loadCache();
-  // Exclude duplicates of the same URL for the same client (or legacy)
-  const filtered = cases.filter(c => !(c.url === caseFile.url && (c.clientId === caseFile.clientId || (!c.clientId && !caseFile.clientId))));
+  // Exclude duplicates of the same URL or ID
+  const filtered = cases.filter(c => !(c.id === caseFile.id || (c.url && caseFile.url && c.url.toLowerCase() === caseFile.url.toLowerCase())));
   filtered.unshift(caseFile); // Prepend new case
   casesCache = filtered;
   flushToDisk();
@@ -66,7 +70,7 @@ function addCase(caseFile) {
 function clearCases(clientId) {
   const cases = loadCache();
   if (clientId) {
-    casesCache = cases.filter(c => c.clientId !== clientId);
+    casesCache = cases.filter(c => c.clientId && c.clientId !== clientId && c.clientId !== 'anonymous');
   } else {
     casesCache = [];
   }

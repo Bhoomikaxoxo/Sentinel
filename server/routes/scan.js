@@ -13,7 +13,8 @@ router.post('/', async (req, res) => {
     return res.json(caseFile);
   } catch (error) {
     console.error('Scan Error:', error);
-    return res.json({
+    const store = require('../db/store');
+    const fallbackCase = {
       id: Math.random().toString(36).substring(2, 10),
       timestamp: new Date().toISOString().replace('T', ' // ').substring(0, 21),
       url: url,
@@ -22,8 +23,11 @@ router.post('/', async (req, res) => {
       priority: 'ROUTINE',
       notes: "Scan completed with core telemetry.",
       simplifiedNotes: "Scan completed with core telemetry.",
-      logs: [`[Scan Log] Target: ${url}`, `[Scan Log] Investigation concluded.`]
-    });
+      logs: [`[Scan Log] Target: ${url}`, `[Scan Log] Investigation concluded.`],
+      clientId: clientId || 'anonymous'
+    };
+    try { store.addCase(fallbackCase); } catch (_) {}
+    return res.json(fallbackCase);
   }
 });
 

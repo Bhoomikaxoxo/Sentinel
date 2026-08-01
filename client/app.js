@@ -148,10 +148,24 @@ function getLocalCases() {
 }
 
 function saveLocalCases(cases) {
+  if (!cases) return;
   try {
-    localStorage.setItem(LOCAL_STORAGE_CASES_KEY, JSON.stringify(cases || []));
+    localStorage.setItem(LOCAL_STORAGE_CASES_KEY, JSON.stringify(cases));
   } catch (e) {
-    console.error('Failed to persist cases to device storage:', e);
+    console.warn('LocalStorage quota reached. Sanitizing heavy screenshots for local device persistence:', e.message);
+    try {
+      const sanitized = cases.map(c => {
+        if (!c) return c;
+        const copy = { ...c };
+        if (copy.screenshot && copy.screenshot.length > 300) {
+          delete copy.screenshot;
+        }
+        return copy;
+      });
+      localStorage.setItem(LOCAL_STORAGE_CASES_KEY, JSON.stringify(sanitized.slice(0, 100)));
+    } catch (err2) {
+      console.error('Failed to persist cases to device storage after sanitizing:', err2);
+    }
   }
 }
 
@@ -199,8 +213,17 @@ async function fetchCasesFromServer() {
 
   // Merge local & server cases
   const mergedMap = new Map();
-  localCases.forEach(c => { if (c && c.id) mergedMap.set(c.id, c); });
   serverFetched.forEach(c => { if (c && c.id) mergedMap.set(c.id, c); });
+  localCases.forEach(c => {
+    if (c && c.id) {
+      if (mergedMap.has(c.id)) {
+        const existing = mergedMap.get(c.id);
+        mergedMap.set(c.id, { ...c, ...existing });
+      } else {
+        mergedMap.set(c.id, c);
+      }
+    }
+  });
 
   serverCases = Array.from(mergedMap.values()).sort((a, b) => parseCaseDate(b).getTime() - parseCaseDate(a).getTime());
   saveLocalCases(serverCases);
