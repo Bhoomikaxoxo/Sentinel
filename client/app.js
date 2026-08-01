@@ -1688,10 +1688,11 @@ function parseCaseDate(c) {
     if (!isNaN(d.getTime())) return d;
   }
   if (c.timestamp) {
-    // Extract YYYY-MM-DD pattern if available
     const dateMatch = c.timestamp.match(/(\d{4}-\d{2}-\d{2})/);
     if (dateMatch) {
-      const d = new Date(dateMatch[1]);
+      const timeMatch = c.timestamp.match(/(\d{2}:\d{2}:\d{2})/);
+      const isoStr = `${dateMatch[1]}T${timeMatch ? timeMatch[1] : '00:00:00'}`;
+      const d = new Date(isoStr);
       if (!isNaN(d.getTime())) return d;
     }
     const cleaned = c.timestamp.replace(' // ', ' ').replace('HRS', '').trim();
@@ -1706,14 +1707,24 @@ function updateDashboardStats() {
   const openCasesCount = serverCases.length;
   document.getElementById('stats-open-cases').textContent = openCasesCount;
 
-  // 2. Flagged Today
+  // 2. Flagged Today / Last 24 Hours
   const todayStr = new Date().toDateString();
+  const nowMs = Date.now();
+  const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+  const intakeLedgerIds = new Set(serverCases.slice(0, 10).map(c => c.id));
+
   const flaggedToday = serverCases.filter(c => {
+    const isFlagged = c.userFlagged === true || c.userFeedback === 'flagged' || c.userFeedback === 'inaccurate' || (c.score !== undefined && c.score < 50);
+    if (!isFlagged) return false;
+
     const caseDate = parseCaseDate(c);
     const isToday = caseDate.toDateString() === todayStr;
-    const isFlagged = c.userFlagged === true || c.userFeedback === 'flagged' || c.userFeedback === 'inaccurate' || (c.score !== undefined && c.score < 50);
-    return isToday && isFlagged;
+    const isWithin24h = Math.abs(nowMs - caseDate.getTime()) <= twentyFourHoursMs;
+    const isInIntakeLedger = intakeLedgerIds.has(c.id);
+
+    return isToday || isWithin24h || isInIntakeLedger;
   }).length;
+
   document.getElementById('stats-flagged-today').textContent = String(flaggedToday).padStart(2, '0');
 
   // 3. Average Score
