@@ -34,27 +34,38 @@ const FRAGMENTS = {
 exports.buildExplanation = (scanResult) => {
   const triggered = scanResult.triggeredRules || [];
   const score = scanResult.score !== undefined ? scanResult.score : 100;
+  const hostname = scanResult.hostname || (scanResult.url ? scanResult.url.replace('https://','').replace('http://','').split('/')[0] : 'target website');
 
   const sentences = triggered
     .map(rule => FRAGMENTS[rule.id] || null)
     .filter(Boolean);
 
+  let headerSummary = '';
+  if (scanResult.securityHeadersAudit) {
+    const vals = Object.values(scanResult.securityHeadersAudit);
+    const passCount = vals.filter(h => h && h.present).length;
+    headerSummary = `Security Headers Audit: Passed ${passCount}/4 controls (${vals.filter(h => h && h.present).map(h => h.name).join(', ') || 'None'}).`;
+  }
+
   let verdictLine = '';
   if (score >= 80) {
-    verdictLine = "Overall, this site shows few risk indicators. Threat levels appear low, but standard browsing safety rules still apply.";
+    verdictLine = `Forensic audit of ${hostname} (Score: ${score}/100) indicates a clean security posture with minimal risk factors.`;
   } else if (score >= 50) {
-    verdictLine = "Overall, this site shows a mix of risk indicators worth caution. Forensic indicators suggest potential security gaps or suspicious domain characteristics.";
+    verdictLine = `Forensic audit of ${hostname} (Score: ${score}/100) reveals security misconfigurations or minor risk anomalies requiring review.`;
   } else {
-    verdictLine = "Overall, this site shows multiple strong risk indicators. High-risk signals indicate a potential threat pattern or confirmed malicious blacklist listing.";
+    verdictLine = `Forensic audit of ${hostname} (Score: ${score}/100) detected critical security risk indicators.`;
   }
 
-  // Handle case where specific checks are missing / unverified
+  const parts = [verdictLine];
+  if (headerSummary) parts.push(headerSummary);
+  parts.push(...sentences);
+
   const hasUnverified = triggered.some(r => r.id === 'rdap_unavailable');
   if (hasUnverified) {
-    sentences.push("Certain domain registration details could not be verified — this scan reflects lexical, structural, and connection checks only.");
+    parts.push("Domain WHOIS/RDAP registration details could not be verified online.");
   }
 
-  return [verdictLine, ...sentences].join(" ");
+  return parts.join(" ");
 };
 
 const SIMPLIFIED_FRAGMENTS = {

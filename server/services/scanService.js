@@ -321,6 +321,15 @@ exports.scanUrl = async (urlString, options = {}) => {
     }
   }
 
+  // Award security headers bonus if audit passes 3+ headers
+  if (headerResult.securityHeadersAudit) {
+    const auditVals = Object.values(headerResult.securityHeadersAudit);
+    const passCount = auditVals.filter(h => h && h.present).length;
+    if (passCount >= 3) {
+      factors.push({ id: 'security_headers_passed' });
+    }
+  }
+
   if (domainUtils.isEstablishedDomain(hostname) && threatFeedsMatched.length === 0) {
     log(`Brand trust: Target domain is a verified established global brand (${hostname}). Applying brand trust verification.`);
     factors.push({ id: 'established_brand_verified' });
@@ -331,25 +340,33 @@ exports.scanUrl = async (urlString, options = {}) => {
   const scoreResult = heuristicEngine.calculateScore(factors);
   log(`Heuristics score computed: ${scoreResult.score}/100`);
 
-  // Build Note / Notes Explanations
+  // Build Note / Notes Explanations with case metadata
   log(`Explainer service: Summarizing results...`);
   let notes = await localExplainer.explain({
     score: scoreResult.score,
     url: urlString,
+    hostname: hostname,
     triggeredRules: factors.map(f => ({ id: f.id, desc: f.desc || (heuristicEngine.RULE_WEIGHTS ? heuristicEngine.RULE_WEIGHTS[f.id]?.desc : f.id) })),
-    redirectChain: headerResult.redirectChain
+    redirectChain: headerResult.redirectChain,
+    securityHeadersAudit: headerResult.securityHeadersAudit
   });
 
   if (!notes) {
     notes = templateExplainer.buildExplanation({
       score: scoreResult.score,
-      triggeredRules: factors
+      url: urlString,
+      hostname: hostname,
+      triggeredRules: factors,
+      securityHeadersAudit: headerResult.securityHeadersAudit
     });
   }
 
   const simplifiedNotes = templateExplainer.buildSimplifiedExplanation({
     score: scoreResult.score,
-    triggeredRules: factors
+    url: urlString,
+    hostname: hostname,
+    triggeredRules: factors,
+    securityHeadersAudit: headerResult.securityHeadersAudit
   });
 
   let priority = 'ROUTINE';
@@ -391,10 +408,19 @@ exports.scanUrl = async (urlString, options = {}) => {
     threatCategories.push('TYPOSQUATTING');
   }
 
-  if (scoreResult.score < 50) {
+  // Check for primary active phishing signals
+  const hasPrimaryPhishingSignal = factors.some(f => 
+    ['threat_feed_match', 'multi_feed_flagged', 'brand_mismatch_dom', 'fake_brand_keyword', 'invisible_credential_fields'].includes(f.id)
+  ) || hasTyposquat;
+
+  if (hasPrimaryPhishingSignal) {
     threatCategories.push('PHISHING');
+  } else if (scoreResult.score < 50) {
+    threatCategories.push('HIGH RISK');
   } else if (scoreResult.score < 80) {
     threatCategories.push('SUSPICIOUS');
+  } else {
+    threatCategories.push('CLEARED');
   }
 
   if (headerResult.redirectChain && headerResult.redirectChain.length > 2) {

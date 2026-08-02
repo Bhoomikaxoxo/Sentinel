@@ -59,7 +59,12 @@ Instructions:
         return response.data.candidates[0].content.parts[0].text.trim();
       }
     } catch (err) {
-      console.log(`[Explainer Service] Gemini API request failed (${err.message}). Falling back to local explainer engine...`);
+      const status = err.response?.status;
+      if (status === 401) {
+        console.warn('[Explainer Service] WARNING: GEMINI_API_KEY in server/.env is invalid or unauthenticated (HTTP 401). Please update GEMINI_API_KEY with a valid Google AI Studio key.');
+      } else {
+        console.log(`[Explainer Service] Gemini API request failed (${err.message}). Falling back to template explainer...`);
+      }
     }
   }
 

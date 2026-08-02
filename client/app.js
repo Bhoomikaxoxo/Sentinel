@@ -2405,27 +2405,39 @@ function drawMapGraph(caseFile) {
   const cx = width / 2, cy = height / 2;
 
   // Pin domain hub at center
-  const rootNode = nodes.find(n => n.type === 'domain');
+  const nodeMap = new Map();
+  nodes.forEach(n => {
+    if (n && n.id) nodeMap.set(String(n.id), n);
+  });
+  const sanitizedNodes = Array.from(nodeMap.values());
+
+  const sanitizedLinks = links.filter(l => {
+    const src = typeof l.source === 'object' ? l.source.id : String(l.source);
+    const tgt = typeof l.target === 'object' ? l.target.id : String(l.target);
+    return src && tgt && nodeMap.has(src) && nodeMap.has(tgt) && src !== tgt;
+  });
+
+  const rootNode = sanitizedNodes.find(n => n.type === 'domain');
   if (rootNode) {
     rootNode.x = cx; rootNode.y = cy;
     rootNode.fx = cx; rootNode.fy = cy;
   }
 
   // Initialize non-domain nodes with organic spiral placement around center
-  const nonRootNodes = nodes.filter(n => n.type !== 'domain');
+  const nonRootNodes = sanitizedNodes.filter(n => n.type !== 'domain');
   nonRootNodes.forEach((node, i) => {
     delete node.fx;
     delete node.fy;
-    const angle = (i / nonRootNodes.length) * 2 * Math.PI + (Math.random() * 0.2 - 0.1);
+    const angle = (i / Math.max(1, nonRootNodes.length)) * 2 * Math.PI + (Math.random() * 0.2 - 0.1);
     const r = (node.type === 'ip' || node.type === 'technology') ? 220 + Math.random() * 40 : 130 + Math.random() * 30;
     node.x = cx + r * Math.cos(angle);
     node.y = cy + r * Math.sin(angle);
   });
 
   // ── D3 Force Simulation (Organic cluster with intact roots) ────────────────
-  const simulation = d3.forceSimulation(nodes)
+  const simulation = d3.forceSimulation(sanitizedNodes)
     .alphaDecay(0.02)
-    .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+    .force('link', d3.forceLink(sanitizedLinks).id(d => d.id).distance(d => {
       // Child nodes (IPs attached to subdomains) sit close to their parent root
       if (d.target && d.target.type === 'ip') return 75;
       if (d.target && d.target.type === 'technology') return 90;
