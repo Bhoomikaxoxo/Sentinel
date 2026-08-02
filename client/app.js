@@ -151,7 +151,9 @@ function getLocalStorageKey() {
 function getLocalCases() {
   try {
     const data = localStorage.getItem(getLocalStorageKey());
-    return data ? JSON.parse(data) : [];
+    const parsed = data ? JSON.parse(data) : [];
+    const currentId = getClientId();
+    return parsed.filter(c => c && c.clientId === currentId);
   } catch (e) {
     return [];
   }
@@ -160,12 +162,14 @@ function getLocalCases() {
 function saveLocalCases(cases) {
   if (!cases) return;
   const storageKey = getLocalStorageKey();
+  const currentId = getClientId();
+  const validCases = cases.filter(c => c && (!c.clientId || c.clientId === currentId)).map(c => ({ ...c, clientId: currentId }));
   try {
-    localStorage.setItem(storageKey, JSON.stringify(cases));
+    localStorage.setItem(storageKey, JSON.stringify(validCases));
   } catch (e) {
     console.warn('LocalStorage quota reached. Sanitizing heavy screenshots for local device persistence:', e.message);
     try {
-      const sanitized = cases.map(c => {
+      const sanitized = validCases.map(c => {
         if (!c) return c;
         const copy = { ...c };
         if (copy.screenshot && copy.screenshot.length > 300) {
@@ -182,6 +186,8 @@ function saveLocalCases(cases) {
 
 function saveCaseToDevice(caseFile) {
   if (!caseFile || !caseFile.id) return serverCases;
+  const currentId = getClientId();
+  caseFile.clientId = currentId;
   let localCases = getLocalCases();
   localCases = localCases.filter(c => c && c.id !== caseFile.id && c.url !== caseFile.url);
   localCases.unshift(caseFile);
@@ -208,12 +214,12 @@ function parseCaseDate(c) {
 
 // Server Database API integration & Device Local Storage Sync
 async function fetchCasesFromServer() {
-  const localCases = getLocalCases();
+  const currentClientId = getClientId();
   let serverFetched = [];
 
   try {
     const response = await fetch('/api/cases', {
-      headers: { 'x-client-id': getClientId() }
+      headers: { 'x-client-id': currentClientId }
     });
     if (response.ok) {
       serverFetched = await response.json();
@@ -222,24 +228,16 @@ async function fetchCasesFromServer() {
     console.error('Failed to load cases from server database:', err);
   }
 
-  // Merge local & server cases
-  const mergedMap = new Map();
-  serverFetched.forEach(c => { if (c && c.id) mergedMap.set(c.id, c); });
-  localCases.forEach(c => {
-    if (c && c.id) {
-      if (mergedMap.has(c.id)) {
-        const existing = mergedMap.get(c.id);
-        mergedMap.set(c.id, { ...c, ...existing });
-      } else {
-        mergedMap.set(c.id, c);
-      }
-    }
-  });
+  // Strictly filter cases belonging to active clientId
+  const clientCases = (serverFetched || []).filter(c => c && (c.clientId === currentClientId || !c.clientId));
+  clientCases.forEach(c => c.clientId = currentClientId);
 
-  serverCases = Array.from(mergedMap.values()).sort((a, b) => parseCaseDate(b).getTime() - parseCaseDate(a).getTime());
+  serverCases = clientCases.sort((a, b) => parseCaseDate(b).getTime() - parseCaseDate(a).getTime());
   saveLocalCases(serverCases);
   updateDashboardStats();
   renderArchiveGrid();
+  renderRegistryRecord();
+  renderInternetMap();
 }
 
 async function clearArchiveOnServer() {
@@ -253,9 +251,11 @@ async function clearArchiveOnServer() {
 
     localStorage.removeItem(getLocalStorageKey());
     serverCases = [];
-    renderArchiveGrid();
     currentCase = null;
     updateDashboardStats();
+    renderArchiveGrid();
+    renderRegistryRecord();
+    renderInternetMap();
     document.getElementById('reportView').classList.add('hidden');
     document.getElementById('scanner-placeholder').classList.remove('hidden');
   }
@@ -1403,14 +1403,17 @@ function renderRegistryRecord() {
   const emptyState = document.getElementById('registry-empty-state');
   const content = document.getElementById('registry-record-content');
 
-  const activeCaseFile = currentCase || serverCases[0];
+  if (serverCases.length === 0) {
+    if (emptyState) emptyState.classList.remove('hidden');
+    if (content) content.classList.add('hidden');
+    if (caseSelect) caseSelect.innerHTML = '<option value="">NO ACTIVE CASES</option>';
+    if (customDropdownLabel) customDropdownLabel.innerHTML = '<span class="text-xs text-gray-400 font-mono">NO ACTIVE CASES</span>';
+    if (customItemsContainer) customItemsContainer.innerHTML = '<div class="p-3 text-xs text-gray-400 font-mono text-center">No cases in archive</div>';
+    return;
+  }
 
-  // Populate active case selector dropdown in Registry Record view
-  const caseSelect = document.getElementById('registry-case-select');
-  const customItemsContainer = document.getElementById('custom-dropdown-items');
-  const customDropdownLabel = document.getElementById('custom-dropdown-label');
-  const customDropdownBtn = document.getElementById('custom-dropdown-btn');
-  const customDropdownMenu = document.getElementById('custom-dropdown-menu');
+  if (emptyState) emptyState.classList.add('hidden');
+  if (content) content.classList.remove('hidden');
 
   if (serverCases.length > 0) {
     // 1. Fallback Select
