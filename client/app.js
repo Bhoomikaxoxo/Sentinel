@@ -523,6 +523,8 @@ async function runSingleScan(urlInput) {
     saveLocalCases(serverCases);
     updateDashboardStats();
     renderArchiveGrid();
+    renderRegistryRecord();
+    renderInternetMap();
 
     // Live print case logs in console tab
     renderLiveLogs(caseFile.logs || []);
@@ -1402,18 +1404,22 @@ async function refreshRegistryRecordForCase(caseFile) {
 function renderRegistryRecord() {
   const emptyState = document.getElementById('registry-empty-state');
   const content = document.getElementById('registry-record-content');
+  const caseSelect = document.getElementById('registry-case-select');
+  const customItemsContainer = document.getElementById('custom-dropdown-items');
+  const customDropdownLabel = document.getElementById('custom-dropdown-label');
+  const customDropdownBtn = document.getElementById('custom-dropdown-btn');
+  const customDropdownMenu = document.getElementById('custom-dropdown-menu');
 
   if (serverCases.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
     if (content) content.classList.add('hidden');
     if (caseSelect) caseSelect.innerHTML = '<option value="">NO ACTIVE CASES</option>';
-    if (customDropdownLabel) customDropdownLabel.innerHTML = '<span class="text-xs text-gray-400 font-mono">NO ACTIVE CASES</span>';
+    if (customDropdownLabel) customDropdownLabel.innerHTML = '<span class="material-symbols-outlined text-[15px] text-gray-500">public</span><span class="truncate text-xs text-gray-400 font-mono">NO ACTIVE CASES</span>';
     if (customItemsContainer) customItemsContainer.innerHTML = '<div class="p-3 text-xs text-gray-400 font-mono text-center">No cases in archive</div>';
     return;
   }
 
-  if (emptyState) emptyState.classList.add('hidden');
-  if (content) content.classList.remove('hidden');
+  const activeCaseFile = currentCase || serverCases[0];
 
   if (serverCases.length > 0) {
     // 1. Fallback Select
@@ -1495,11 +1501,13 @@ function renderRegistryRecord() {
   }
 
   if (!activeCaseFile || !activeCaseFile.registryRecord) {
-    emptyState.classList.remove('hidden');
+    if (emptyState) emptyState.classList.remove('hidden');
+    if (content) content.classList.add('hidden');
     return;
   }
 
-  emptyState.classList.add('hidden');
+  if (emptyState) emptyState.classList.add('hidden');
+  if (content) content.classList.remove('hidden');
   const record = activeCaseFile.registryRecord;
   const regCheck = record.registration || {};
   const dnsCheck = record.dns || {};
