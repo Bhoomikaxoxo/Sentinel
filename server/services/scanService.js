@@ -380,21 +380,7 @@ exports.scanUrl = async (urlString, options = {}) => {
 
   const caseId = crypto.randomUUID();
   const formattedTime = new Date().toISOString().replace('T', ' // ').substring(0, 21);
-
-  // Preserve previous watchlist parameters on rescan
   const isWatched = prevCase ? prevCase.watched === true : false;
-
-  // Calculate Sweep Confidence
-  let confidence = 'HIGH';
-  const hasRdapError = factors.some(f => f.id === 'rdap_unavailable');
-  const hasDnsError = factors.some(f => f.id === 'dns_resolution_failure' || f.id === 'dns_resolution_error');
-  const hasDomError = factors.some(f => f.id === 'dom_analysis_failed');
-
-  if (hasRdapError && hasDomError) {
-    confidence = 'LOW';
-  } else if (hasRdapError || hasDnsError || hasDomError) {
-    confidence = 'MEDIUM';
-  }
 
   // Dynamically Tag Threat Categories
   const threatCategories = [];
@@ -408,10 +394,26 @@ exports.scanUrl = async (urlString, options = {}) => {
     threatCategories.push('TYPOSQUATTING');
   }
 
-  // Check for primary active phishing signals
+  // Check for primary active phishing/brand signals
   const hasPrimaryPhishingSignal = factors.some(f => 
     ['threat_feed_match', 'multi_feed_flagged', 'brand_mismatch_dom', 'fake_brand_keyword', 'invisible_credential_fields'].includes(f.id)
   ) || hasTyposquat;
+
+  // Calculate Sweep Confidence with Corroboration Guard
+  let confidence = 'HIGH';
+  const hasRdapError = factors.some(f => f.id === 'rdap_unavailable');
+  const hasDnsError = factors.some(f => f.id === 'dns_resolution_failure' || f.id === 'dns_resolution_error');
+  const hasDomError = factors.some(f => f.id === 'dom_analysis_failed');
+  const hasProbeError = hasRdapError || hasDnsError || hasDomError;
+
+  if (hasRdapError && hasDomError) {
+    confidence = 'LOW';
+  } else if (hasProbeError) {
+    confidence = 'MEDIUM';
+  } else if (scoreResult.score < 80 && !hasPrimaryPhishingSignal) {
+    // Indirect heuristic/hygiene warnings without hard threat feed or brand corroboration => cap at MEDIUM
+    confidence = 'MEDIUM';
+  }
 
   if (hasPrimaryPhishingSignal) {
     threatCategories.push('PHISHING');
