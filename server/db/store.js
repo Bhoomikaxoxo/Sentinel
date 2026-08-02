@@ -45,22 +45,29 @@ function flushToDisk() {
 }
 
 function getCases(clientId) {
+  if (!clientId || clientId === 'anonymous') return [];
   const cases = loadCache();
-  if (clientId) {
-    return cases.filter(c => !c.clientId || c.clientId === clientId || c.clientId === 'anonymous');
-  }
-  return cases;
+  return cases.filter(c => c.clientId === clientId);
 }
 
-function getCaseById(id) {
+function getCaseById(id, clientId) {
+  if (!id) return null;
   const cases = loadCache();
-  return cases.find(c => c.id === id) || null;
+  return cases.find(c => c.id === id && (!clientId || c.clientId === clientId)) || null;
 }
 
 function addCase(caseFile) {
+  if (!caseFile || !caseFile.clientId || caseFile.clientId === 'anonymous') {
+    return false;
+  }
   const cases = loadCache();
-  // Exclude duplicates of the same URL or ID
-  const filtered = cases.filter(c => !(c.id === caseFile.id || (c.url && caseFile.url && c.url.toLowerCase() === caseFile.url.toLowerCase())));
+  // Deduplicate strictly per client ID
+  const filtered = cases.filter(c => {
+    if (c.clientId !== caseFile.clientId) return true;
+    const sameId = c.id === caseFile.id;
+    const sameUrl = c.url && caseFile.url && c.url.toLowerCase() === caseFile.url.toLowerCase();
+    return !(sameId || sameUrl);
+  });
   filtered.unshift(caseFile); // Prepend new case
   casesCache = filtered;
   flushToDisk();
@@ -68,19 +75,16 @@ function addCase(caseFile) {
 }
 
 function clearCases(clientId) {
+  if (!clientId || clientId === 'anonymous') return false;
   const cases = loadCache();
-  if (clientId) {
-    casesCache = cases.filter(c => c.clientId && c.clientId !== clientId && c.clientId !== 'anonymous');
-  } else {
-    casesCache = [];
-  }
+  casesCache = cases.filter(c => c.clientId !== clientId);
   flushToDisk();
   return true;
 }
 
-function updateCase(id, updates) {
+function updateCase(id, updates, clientId) {
   const cases = loadCache();
-  const idx = cases.findIndex(c => c.id === id);
+  const idx = cases.findIndex(c => c.id === id && (!clientId || c.clientId === clientId));
   if (idx !== -1) {
     cases[idx] = { ...cases[idx], ...updates };
     casesCache = cases;
@@ -90,9 +94,10 @@ function updateCase(id, updates) {
   return false;
 }
 
-function getLatestCaseByHostname(hostname) {
+function getLatestCaseByHostname(hostname, clientId) {
   const cases = loadCache();
   return cases.find(c => {
+    if (clientId && c.clientId !== clientId) return false;
     try {
       const u = new URL(c.url);
       return u.hostname.toLowerCase() === hostname.toLowerCase();

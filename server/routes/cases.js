@@ -7,6 +7,9 @@ const registryService = require('../services/registryService');
 router.get('/', (req, res) => {
   try {
     const clientId = req.headers['x-client-id'] || req.query.clientId;
+    if (!clientId || clientId === 'anonymous') {
+      return res.json([]);
+    }
     const cases = store.getCases(clientId);
     res.json(cases);
   } catch (error) {
@@ -18,7 +21,8 @@ router.get('/', (req, res) => {
 router.get('/:id/registry-refresh', async (req, res) => {
   try {
     const { id } = req.params;
-    const caseFile = store.getCaseById(id);
+    const clientId = req.headers['x-client-id'] || req.query.clientId;
+    const caseFile = store.getCaseById(id, clientId);
     if (!caseFile) {
       return res.status(404).json({ error: 'Case not found' });
     }
@@ -32,7 +36,7 @@ router.get('/:id/registry-refresh', async (req, res) => {
     } catch(e) {}
 
     const freshRecord = await registryService.buildRegistryRecord(hostname);
-    store.updateCase(id, { registryRecord: freshRecord });
+    store.updateCase(id, { registryRecord: freshRecord }, clientId);
     res.json({ success: true, registryRecord: freshRecord });
   } catch (error) {
     console.error('Error refreshing registry record:', error);
@@ -43,7 +47,8 @@ router.get('/:id/registry-refresh', async (req, res) => {
 // GET /api/cases/:id - Retrieve specific case details
 router.get('/:id', (req, res) => {
   try {
-    const caseFile = store.getCaseById(req.params.id);
+    const clientId = req.headers['x-client-id'] || req.query.clientId;
+    const caseFile = store.getCaseById(req.params.id, clientId);
     if (!caseFile) {
       return res.status(404).json({ error: 'Case file not found' });
     }
@@ -58,7 +63,8 @@ router.post('/:id/watch', (req, res) => {
   try {
     const { id } = req.params;
     const { watched } = req.body;
-    const success = store.updateCase(id, { watched: watched === true });
+    const clientId = req.headers['x-client-id'] || req.body.clientId;
+    const success = store.updateCase(id, { watched: watched === true }, clientId);
     if (success) {
       res.json({ success: true, watched: watched === true });
     } else {
@@ -74,11 +80,12 @@ router.post('/:id/feedback', (req, res) => {
   try {
     const { id } = req.params;
     const { feedback, userFlagged } = req.body; // e.g. "flagged", "inaccurate", or null
+    const clientId = req.headers['x-client-id'] || req.body.clientId;
     const updates = { userFeedback: feedback };
     if (userFlagged !== undefined) {
       updates.userFlagged = userFlagged;
     }
-    const success = store.updateCase(id, updates);
+    const success = store.updateCase(id, updates, clientId);
     if (success) {
       res.json({ success: true, userFeedback: feedback, userFlagged });
     } else {
@@ -93,6 +100,9 @@ router.post('/:id/feedback', (req, res) => {
 router.delete('/', (req, res) => {
   try {
     const clientId = req.headers['x-client-id'] || req.query.clientId;
+    if (!clientId || clientId === 'anonymous') {
+      return res.status(400).json({ error: 'Client ID header required to clear cases' });
+    }
     const success = store.clearCases(clientId);
     if (success) {
       res.json({ status: 'success', message: 'Case database cleared' });

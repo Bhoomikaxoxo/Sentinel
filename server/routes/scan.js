@@ -7,6 +7,9 @@ router.post('/', async (req, res) => {
   const { url, userAgent, timeout } = req.body;
   const clientId = req.headers['x-client-id'] || req.body.clientId;
   if (!url) return res.status(400).json({ error: 'URL is required' });
+  if (!clientId || clientId === 'anonymous') {
+    return res.status(400).json({ error: 'Valid client identification (x-client-id header) is required.' });
+  }
 
   try {
     const caseFile = await scanService.scanUrl(url, { clientId, userAgent, timeout });
@@ -24,7 +27,7 @@ router.post('/', async (req, res) => {
       notes: "Scan completed with core telemetry.",
       simplifiedNotes: "Scan completed with core telemetry.",
       logs: [`[Scan Log] Target: ${url}`, `[Scan Log] Investigation concluded.`],
-      clientId: clientId || 'anonymous'
+      clientId: clientId
     };
     try { store.addCase(fallbackCase); } catch (_) {}
     return res.json(fallbackCase);
@@ -37,6 +40,9 @@ router.post('/batch', async (req, res) => {
   const clientId = req.headers['x-client-id'] || req.body.clientId;
   if (!urls || !Array.isArray(urls)) {
     return res.status(400).json({ error: 'URLs array is required' });
+  }
+  if (!clientId || clientId === 'anonymous') {
+    return res.status(400).json({ error: 'Valid client identification (x-client-id header) is required.' });
   }
 
   // Cap at 20 URLs to avoid resource exhaustion

@@ -15,7 +15,15 @@ let isBatchMode = false;
 function getClientId() {
   let clientId = localStorage.getItem('sentinel_client_id');
   if (!clientId) {
-    clientId = 'client_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      clientId = 'client_' + crypto.randomUUID();
+    } else if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      const arr = new Uint8Array(16);
+      crypto.getRandomValues(arr);
+      clientId = 'client_' + Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    } else {
+      clientId = 'client_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    }
     localStorage.setItem('sentinel_client_id', clientId);
   }
   return clientId;
@@ -136,11 +144,13 @@ async function switchTab(buttonId) {
 }
 
 // Device LocalStorage Persistence for Case History
-const LOCAL_STORAGE_CASES_KEY = 'sentinel_device_cases';
+function getLocalStorageKey() {
+  return 'sentinel_device_cases_' + getClientId();
+}
 
 function getLocalCases() {
   try {
-    const data = localStorage.getItem(LOCAL_STORAGE_CASES_KEY);
+    const data = localStorage.getItem(getLocalStorageKey());
     return data ? JSON.parse(data) : [];
   } catch (e) {
     return [];
@@ -149,8 +159,9 @@ function getLocalCases() {
 
 function saveLocalCases(cases) {
   if (!cases) return;
+  const storageKey = getLocalStorageKey();
   try {
-    localStorage.setItem(LOCAL_STORAGE_CASES_KEY, JSON.stringify(cases));
+    localStorage.setItem(storageKey, JSON.stringify(cases));
   } catch (e) {
     console.warn('LocalStorage quota reached. Sanitizing heavy screenshots for local device persistence:', e.message);
     try {
@@ -162,7 +173,7 @@ function saveLocalCases(cases) {
         }
         return copy;
       });
-      localStorage.setItem(LOCAL_STORAGE_CASES_KEY, JSON.stringify(sanitized.slice(0, 100)));
+      localStorage.setItem(storageKey, JSON.stringify(sanitized.slice(0, 100)));
     } catch (err2) {
       console.error('Failed to persist cases to device storage after sanitizing:', err2);
     }
@@ -240,7 +251,7 @@ async function clearArchiveOnServer() {
       }).catch(() => { });
     } catch (_) { }
 
-    localStorage.removeItem(LOCAL_STORAGE_CASES_KEY);
+    localStorage.removeItem(getLocalStorageKey());
     serverCases = [];
     renderArchiveGrid();
     currentCase = null;
